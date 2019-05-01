@@ -823,3 +823,35 @@ __default_alloc_template<therads, inst>::free_list[__NFREELISTS]
 // 令第二级分配器的名称为alloc
 typedef __default_alloc_template<false, 0> alloc;
 ```
+
+# malloc/free (VC6.0)
+
+- VC6.0 Call Stack  
+  <img src="./imgs/vc-main.png" width="50%">
+
+- SBH之试 - `_heap_init()`和`__shb_heap_init()`  
+  CRT会先为自己建立一个`_crtheap`，然后从中配置SBH所需的header，regions作为管理之用。
+  ```
+  int __cdecl _heap_init(int mftlag) {  // 分配16个header
+    // Initialize the "big-block" heap first
+    if((_crtheap = HeapCreate(mtflag ? 0 : HEAP_NO_SERIALIZE, BYTES_PER_PAGE, 0)) == NULL)
+      retrun 0;
+    // Initialize the small-block heap
+    if(__sbh_heap_init() == 0) {
+      HeapDestroy(_crtheap);
+      return 0;
+    }
+    return 1;
+  }
+  ```
+  ```
+  int __cdecl __sbh_heap_init(void) {
+    if(!(__sbh_pHeaderList = HeapAlloc(_crtheap, 0, 16 * sizeof(HEADER))))
+      return FALSE;
+    __sbh_pHeaderScan      = __sbh_pHeaderList;
+    __sbh_pHeaderDefer     = NULL;
+    __sbh_cntHeaderDefer   = 0;
+    __sbh_sizeHeaderDefer  = 16;
+    return TRUE;
+  }
+  ```
