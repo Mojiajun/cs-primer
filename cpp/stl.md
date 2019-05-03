@@ -822,3 +822,209 @@ size_type bkt_num_key(const key_type& key, size_t n) const {
     return last - first;
   }
   ```
+
+## 仿函数functors
+
+仿函数`functors`的可适配（adaptable）条件
+```
+template <class Arg, class Result>
+struct unary_function { // 一元操作
+  typedef Arg    argument_type;
+  typedef Result result_type;
+};
+  
+template <class Arg1, class Arg2, class Result>
+struct binary_function { // 二元操作
+  typedef Arg1   first_argument_type;
+  typedef Arg2   second_argument_type;
+  typedef Result result_type;
+}
+```
+
+STL规定每个Adaptable Function都应该挑选适当者（unary_function或binary_function），因为Function Adapter将会提问。例如：
+```
+template <class Operation>
+class binder2nd:
+  public unary_function<typename Operation::first_argument_type
+                          typename Operation::result_type> {
+ protected:
+  Operation op;
+  typename Operation::second_argument_type value; // ***
+ public:
+  //constructor
+  binder2nd(const Operation& x
+            const typename Operation::second_argument_type& y)
+    : op(x), value(y) {}
+  typename Operation::result_type
+  operator()(const typename Operation::first_argument_type& x) const {
+    return op(x, value);
+  }
+};
+```
+
+## 适配器Adapter
+
+- 容器适配器：stack，queue
+- 函数适配器：binder2nd, not, bind
+- 迭代器适配器：reverse_iterator, inserter
+- X适配器：ostream_iterator, istream_iterator
+
+## 一个万用的Hash Function
+
+- 如何定义hash function
+  例如为`class Customer {//...};`定义一个hash function
+  - 形式一
+    ```
+    #include <functional>
+    class CustomerHash {
+    public:
+      std::size_t operator()(const Customer& c) const {
+        return ...
+      }
+    };
+
+    unordered_set<Customer, CustomerHash> custset;
+    ```
+  - 形式二
+    ```
+    #incluce <functional>
+    size_t customer_hash_func(const Customer& c) {
+      return ...
+    }
+
+    unordered_set<Customer, size_t(*)(const Costomer&)> custset(20, customer_hash_func)
+    ```
+  - 形式三
+    ```
+    // parital specialization for your class
+    namespace std {
+    template<> struct hash<Customer> {
+      size_t operator()(const Customer& c) {
+        return hash_val(...);
+      }
+    };
+    }
+    ```
+- 万用hash function
+  ```
+  class CustomerHash {
+   public:
+    std::size_t operator()(const Customer& c) {
+      return hash_val(c.fname, c.lname, c.no); // hash_val结合生成hash code
+    }
+  };
+  ```
+
+## tuple
+
+```
+// G4.8 简化版
+template<typename... Value> class tuple;
+template<> class tuple<> {}
+
+template <typename Head, typename... Tail> // typename... 任意多个模板参数
+class tuple<Head, Tail...>: private tuple<Tail...> {
+  typedef tuple<Tail...> inhearited;
+ public:
+  tuple() {}
+  tuple(Head v, tail... vtail): m_head(v), inherited(vtail) {}
+  
+  typename Head::type head() { return m_head; }
+  inherited& tail() { return *this; }
+ protected:
+  Head m_head;
+};
+```
+<img src="imgs/stl-tuple.png" width="50%">
+
+## type traits
+
+```
+// G2.9
+struct __true_type {}
+struct __false_type {}
+
+// 泛化
+template <class type>
+struct __type_traits {
+  typedef __true_type  this_dummy_member_must_be_first;
+  typedef __false_type has_trival_default_constructor;
+  typedef __false_type has_trival_copy_constructor;
+  typedef __false_type has_trival_assignment_operator;
+  typedef __false_type has_trival_desconstor;
+  typedef __false_type is_POD_type; // Plain Old Data
+};
+
+// 特化
+template<> struct __type_traits<int> {
+  typedef __true_type  has_trival_default_constructor;
+  typedef __true_type  has_trival_copy_constructor;
+  typedef __true_type  has_trival_assignment_operator;
+  typedef __true_type  has_trival_desconstor;
+  typedef __true_type  is_POD_type;
+};
+template<> struct __type_traits<double> {
+  typedef __true_type  has_trival_default_constructor;
+  typedef __true_type  has_trival_copy_constructor;
+  typedef __true_type  has_trival_assignment_operator;
+  typedef __true_type  has_trival_desconstor;
+  typedef __true_type  is_POD_type;
+};
+// ...
+```
+
+type traits 实现
+
+- is_void
+  ```
+  // remove_const
+  template<typename _Tp>
+  struct remove_const { typedef _Tp type; };
+  
+  template<typename _Tp>
+  struct remove_const<_Tp const> { typedef _Tp type; };
+
+  // remove_volatile
+  template<typename _Tp>
+  struct remove_volatile { typedef _Tp type; };
+
+  template<typename _Tp>
+  struct remove_volatile<_Tp volation> { typedef _Tp type; };
+
+  // remove_cv
+  template<typename _Tp>
+  struct remove_cv {
+    typedef typename
+    remove_const<typename remove_volatile<_Tp>::type>::type type;
+  };
+
+  template<typename>
+  struct __is_void_helper: public false_type {};
+
+  template<>
+  struct __is_void_helper<void>: public true_type {};
+
+  // is_void
+  template<typename _Tp>
+  struct is_void: public is_void_helper<typename remove_cv<_Tp>::type>::type {};
+  ```
+
+- is_class, is_union, is_enum, is_pod
+  ```
+  // is_enum
+  template<typename _Tp>
+  struct is_enum: public integral_constant<bool, __is_enum(_Tp)> {};
+
+  // is_unoin
+  template<typename _Tp>
+  struct is_union: public integral_constant<bool, __is_union(_Tp)> {};
+
+  // is_class
+  template<typename _Tp>
+  struct is_class: public integral_constant<bool, __is_class(_Tp)> {};
+
+  // is_pod
+  template<typename _Tp>
+  struct is_pod: public integral_constant<bool, __is_pod(_Tp)> {};
+  ```
+  __is_xxx(__is_enum, __is_union, __is_class, __is_pod, ...)未曾出现C++标准库源代码
