@@ -785,3 +785,40 @@ size_type bkt_num_key(const key_type& key, size_t n) const {
   return hash(key) % n;
 }
 ```
+
+## 各种容器的`iterator`的`iterator_category`
+
+- 五种`iterator_category`
+  ```
+  struct input_iterator_tag {};
+  struct output_iterator_tag {};
+  struct forward_iterator-tag: public input_iterator_tag {};
+  struct bidirectional_iterator_tag: public forward_iterator_tag {};
+  struct random_access_iterator_tag: public bidirectional_iterator_tag {};
+  ```
+
+- `iterator_category`对算法的影响
+  ```
+  template <class InputIterator>
+  inline iterator_traits<InputIterator>::difference_type
+  distance(InputIterator first, InputIterator last) {
+    typedef typename iterator_traits<InputIterator>::iterator_category category;
+    return __distance(first, last, category()); // 根据category()调用具体__distance(...)
+  }
+
+  template <class InputIterator>
+  inline iterator_traits<InputIterator>::difference_type
+  __distance(InputIterator first, InputIterator last, input_iterator_tag) {
+    iterator-traits<InputIterator>::difference_type n = 0;
+    while(first != last) {
+      ++first; ++n;
+    }
+    return n;
+  }
+
+  template <class InputIterator>
+  inline iterator_traits<InputIterator>::difference_type
+  __distance(InputIterator first, InputIterator last, random_access_iterator_tag) {
+    return last - first;
+  }
+  ```
