@@ -509,3 +509,279 @@ reference operator[](difference_type n) const { return *(*this + n); }
 - queue不可以选择vector作为底层结构
 - stack可以选择vector作为底层结构
 - stack和queue都不可选择set或者map作为底层结构
+
+## rb_tree（红黑树）
+
+- Red-Black Tree（红黑树）是平衡二叉查找树中常被使用的一种。  
+  平衡二叉树的特性：排列规则有利search和insert，并保持深度平衡。
+- rb_tree提供“遍历”操作及iterator  
+  按正常规则（++iter）遍历，便能获得排序状态（sorted）
+- 我们不应使用rb_tree的iterator改变元素值（因为元素有其遵循的排列规则）。编程层面（programming level）并未杜绝此事。如此设计是正确的，因为rb_tree即将为set和map服务（作为其底部支持），而map允许元素的data被改变，只有key才是不可以改变的。
+- rb_tree提供两种insertion操作：insert_unique()和insert_equal()。前者表示结点的key一定在整个tree中独一无二，否则插入失败；后者表示结点的key可重复。
+
+```
+template <class Key,         // 键值类型
+          class Value,       // key+data的类型
+          class KeyOfValue,  // data的类型
+          class Compare,     // key的比较函数
+          class Alloc=alloc> // 分配器
+class rb_tree {
+ protected:
+  typedef __rb_tree_node<Value> rb_tree_node;
+  //...
+ public:
+  typedef rb_tree_node* link_type;
+  //...
+ protected:
+  size_type node_count;  // rb_tree结点数量
+  link_type header;
+  Compare   key_compare; // key的大小比较规则
+  //...
+}
+```
+
+## 容器set，multiset深度探索
+
+- set/multiset以rb_tree为底层结构，因此有元素自动排序的特性，排序的依据是key，而set/multiset元素的value和key合一，value就是key。
+- set/multiset提供遍历操作及iterators。  
+  按正常规则（++iter）遍历，便能获得排序状态（sorted）。
+- 我们无法使用set/multiset的iterators改变元素值（因为key有其遵从的排列规则）。set/multiset的iterator是其底部的rb_tree的const iterator，就是为了禁止user对元素复制。
+- set元素的key必须独一无二，因此其insert()用的是rb_tree的insert_unique()。  
+  multiset元素的key可以重复，因此其insert()用的是rb_tree的insert_equal()。
+
+```
+// ------------------------------------------------------
+// set
+// ------------------------------------------------------
+template <class Key
+          class Compare=less<Key>,
+          class Alloc=alloc>
+class set {
+ public:
+  typedef Key      key_type;
+  typedef Key      value_type;
+  typedef Compare  key_compare;
+  typedef Compare  value_type;
+ private:
+  typedef rb_tree<key_type, value_type, identity<value_type>,
+                  key_compare, Alloc> rep_type;
+  rep_type t;
+ public:
+  typedef typename rep_type::const_iterator iterator;
+// ...
+// set的所有操作，都调用底层t（rb_tree）的操作
+};
+```
+
+## 容器map，multimap深度探索
+
+- map/multimap以rb_tree为底层结构，因此有元素自动排序的特性，排序的依据是key，而set/multiset元素的value和key合一，value就是key。
+- map/multimap提供遍历操作及iterators。  
+  按正常规则（++iter）遍历，便能获得排序状态（sorted）。
+- 我们无法使用map/multimap的iterators改变元素值（因为key有其遵从的排列规则），但可以用它来改变元素的data。因此map/multimap内部自动将user制定的key type设为const，如此便能禁止user对元素的key赋值。
+- map元素的key必须独一无二，因此其insert()用的是rb_tree的insert_unique()。  
+  multimap元素的key可以重复，因此其insert()用的是rb_tree的insert_equal()。
+
+```
+template <class Key,
+          class T,
+          class Compare=less<Key>,
+          class Alloc=alloc>
+class map {
+ public:
+  typedef Key                key_type;
+  typedef T                  data_type;
+  typedef T                  mapped_type;
+  typedef pair<const Key, T> value_type;
+  typedef Compare            key_compare;
+ private:
+  typedef rb_tree<key_type, value_type, selet1st<value_type>,
+                  key_compare, Alloc> rep_type;
+  rep_type t;
+ public:
+  typedef typename rep_type::iterator iterator;
+  // ...
+}
+```
+容器map独特的`operator[]`
+```
+// G4.9 /usr/include/c++/5/bits/stl_map.h
+// [23.3.1.2] element access
+/**
+ * @brief Subscript ( @c [] ) access to %map data
+ * @param __k The key for which data should be retrieved
+ * @ return A reference to the data of the (key, data) % pair
+ *
+ * Allows for easy lookup with the subscript ( @c [] )
+ * operator. Returns data associated with the key specified in
+ * subscript. If the key does not exist, a pair with taht key
+ * is created using default values, with is then returned.
+ *
+ * Lookup requires logarithmic time.
+ * /
+mapped_type& operator[](const key_type& __k) {
+  // concept requirements
+  __glibcxx_function_requires(_DefaultConstructibleConcept<mapped_type>)
+  iterator __i = lower_bound(__k);
+  // __i->first is greater than or equivalent to __k
+  if(__i == end() || key_comp()(__k, (*__i).first))
+#if __cplusplus >= 201103L
+    __i = _M_t._M_emplace_hint_unique(__i, std::piecewise_construct,
+                                      std::tuple<const key_type&>(__k),
+                                      std::tuple<>());
+#else
+    __i = insert(__i, value_type(__k, mapped_type()));
+#endif
+    return (*__i).second;
+}
+```
+
+## hashtable深度探索
+
+- 相关概念
+  - 冲突：不同的关键字得到同一哈希地址的现象。
+  - 哈希表：根据设定的哈希函数H(key)和处理冲突的方法将一组关键字映像到一个有限的连续的地址集（区间）上，并以关键字在地址集中的“像”作为记录在表中的储存位置，这种表便是哈希表。
+  - 哈希函数构造方法
+    - 直接定址法  -- 取关键字或关键字的某个现行函数值为哈希地址；
+    - 数字分析法  -- 取关键字的若干数位组成哈希地址；
+    - 平方取中法  -- 取关键字平方后的中间几位为哈希地址；
+    - 折叠法  -- 将关键字分割成位数相同的几部分（最后一部分的位数可以不同），然后取这几部分的叠加和（舍去进位）作为哈希地址；
+    - **除留余数法** -- 取关键字被某个不大于哈希表表长m的数p除后所得余数作为哈希地址；
+    - 随机数法  -- 选择一个随机函数，取关键字的随机函数值为他的哈希地址；
+  - 处理冲突的方法
+    - 开放定址法 $H_i = (H(key) + d_i) MOD m$
+      - $d_i=1, 2, 3,..., m-1$，称为线性探测再散列；
+      - $d_i=1^2, -1^2, 2^2, -2^2, ...$，称为二次探测再散列；
+      - $d_i=$伪随机数序列，称为伪随机探测再散列；
+    - 再哈希法 $H_i = RH_i(key)$，即在同义词产生地址冲突时计算另一个函数函数的地址，直到冲突不再发生
+    - **链地址法** -- 将所有关键字为同义词的记录存储在同一线性链表中。
+    - 建立公共溢出区
+- stl
+
+```
+// hashtabe buckets的个数（质数，约为两倍增长）
+static const unsigned long
+__stl_prime_list[__stl_num_primes] = {
+  53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, ...
+};
+
+template <class Value>
+struct __hashtable_node {
+  __hashtable_node* next;
+  Value             val;
+};
+
+template <class Value, class Key, class HashFcn,
+          class ExtractKey, class EqualKey,
+          class Alloc=alloc>
+class hashtable {
+ public:
+  typedef HashFcn                 hasher;
+  typedef EqualKey                key_equal;
+  typedef size_t                  size_type;
+ private:
+  hasher                          hash;
+  key_equal                       equals;
+  ExtractKey                      get_key;
+  typedef __hashtable_node<Value> node;
+  vector<node* Alloc>             buckets;
+  size_type                       num_elements;
+ public:
+  size_type bucket_count() { return buckets.size(); }
+  // ...
+};
+
+template <class Value, class Key, class HashFcn,
+          class ExtractKey, class EqualKey,
+          class Alloc>
+struct __hashtable_iterator {
+  //..
+  node*      cur;
+  hashtable* ht;
+};
+```
+
+- hash-function, hash-code
+
+```
+// #define __STL_TEMPLATE_NULL template<>
+
+// general
+template <class Key> struct hash{ };
+
+// partial specialization
+__STL_TEMPLATE_NULL stuct hash<char> {
+  size_t operator()(char x) const { return x; }
+}
+__STL_TEMPLATE_NULL stuct hash<short> {
+  size_t operator()(short x) const { return x; }
+}
+__STL_TEMPLATE_NULL stuct hash<unsigned short> {
+  size_t operator()(unsigned short x) const { return x; }
+}
+__STL_TEMPLATE_NULL stuct hash<int> {
+  size_t operator()(int x) const { return x; }
+}
+__STL_TEMPLATE_NULL stuct hash<unsigned int> {
+  size_t operator()(unsigned int x) const { return x; }
+}
+__STL_TEMPLATE_NULL stuct hash<long> {
+  size_t operator()(long x) const { return x; }
+}
+__STL_TEMPLATE_NULL stuct hash<unsigned long> {
+  size_t operator()(unsigned long x) const { return x; }
+}
+
+inline size_t __stl_hash_string(const char* s) {
+  unsigned long h = 0;
+  for(; *s; ++s)
+    h = 5*h + *s;
+  return size_t(h);
+}
+
+__STL_TEMPLATE_NULL stuct hash<char*> {
+  size_t operator()(char* s) const { return __stl_hash_string(s); }
+}
+__STL_TEMPLATE_NULL stuct hash<const char*> {
+  size_t operator()(const char* s) const { return __stl_hash_string(s); }
+}
+
+// 没有hash<std::string>
+```
+
+- modulus（MOD）运算
+
+```
+iterator find(const key_type& key) {
+  size_type n = bkt_num_key(key); // (1) 花落何家
+  //...
+}
+size_type count(const key_type& key) const {
+  const size_type n = bkt_num_key(key); // (1)
+  // ...
+}
+
+tmeplate <class V, class K, class HF, class ExK, class EqK, class A>
+__hashtable_iterator<V, K, HF, ExK, EqK, A>&
+__hashtable_iterator<V, K, HF, ExK, EqK, A>::
+operator++() {
+  //...
+  size_type bucket = ht->bkt_num(old->val); // (2)
+  //...
+}
+
+// (1)
+size_type bkt_num_key(const key_type& key) const {
+  reutrn bkt_num_key(key, buckets.size()); // (3)
+}
+
+// (2)
+size_type bkt_num(const value_type& obj) const {
+  return bkt_num_key(get_key(obj)); // (1)
+}
+
+// (3)
+size_type bkt_num_key(const key_type& key, size_t n) const {
+  return hash(key) % n;
+}
+```
