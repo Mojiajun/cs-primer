@@ -370,34 +370,34 @@ class Foo {
   allocator Foo::myAlloc;
   ```
 
-## version4 - macro for static allocator  
+- version4 - macro for static allocator  
  
-将用到allocator的部分定义成宏
-```
-#define DECLARE_POOL_ALLOC() \
-public: \
- void *operator new(size_t size) { return myAlloc.allocate(size); } \
- void operator delete(void *p, size_t size) { return myAlloc.deallocate(p, size); } \
-protected: \
- static allocate myAlloc;
+  将用到allocator的部分定义成宏
+  ```
+  #define DECLARE_POOL_ALLOC() \
+  public: \
+   void *operator new(size_t size) { return myAlloc.allocate(size); } \
+   void operator delete(void *p, size_t size) { return myAlloc.deallocate(p, size); } \
+  protected: \
+   static allocate myAlloc;
 
-#define IMPLEMENT_POOL_ALLOC(classname) \
-allocator class_name::myAlloc;
-```
+  #define IMPLEMENT_POOL_ALLOC(classname) \
+  allocator class_name::myAlloc;
+  ```
 
-则`class Foo`可以简写为
-```
-class Foo {
-   DECLARE_POOL_ALLOC();
-   public:
-    Foo(long l): L(l) {}
-   private:
-    long L;
-    string str;
-    static allocator myAlloc;
-  }
-  IMPLEMENT_POOL_ALLOC(Foo);
-```
+  则`class Foo`可以简写为
+  ```
+  class Foo {
+     DECLARE_POOL_ALLOC();
+     public:
+      Foo(long l): L(l) {}
+     private:
+      long L;
+      string str;
+      static allocator myAlloc;
+    }
+    IMPLEMENT_POOL_ALLOC(Foo);
+  ```
 
 ## global allocator (with multiple free-lists)
 
@@ -523,335 +523,4 @@ class new_allocator {
       std::__throw_bad_alloc();
     return static_cast<_Tp*>(::operator new(__n*sizeof(_Tp)));
   }
-  void deallocate(pointer __p, size_type) { ::operator delete(__p); }
-}
-```
-标准分配器`std::allocator`继承的是`__allocator_base`。而`__allocator_base`就是`new_allocator`
-```
-#define __allocator_base __gnu_cxx::new_allocator
-template<typename _Tp>
-class allocator: public __allocator_base<_Tp> { //...}
-```
-
-## G2.9 std::alloc运行模式（对应于G4.9 __gnu_cxx::__pool_alloc）
-
-- 负责[8, 128]bytes内存的分配，必须是8的倍数，不是的话，补齐。大于128bytes，直接调用`malloc`分配  
-  `std::alloc`在向操作系统申请的时候，每次申请20+20个。后20个大小的内存块当做暂配池，后继申请，首先从暂配池中查找，如果有并且可以切个出一个，就切割；否者再去申请。但是每次最多切割20个。  
-  <img src="./imgs/std_alloc.png " width="50%">
-
-- 嵌入式指针（embedding pointers）
-  当客户端获得小区块，获得的即是`char *`（指向某个union object）。此时虽然客户端没有诸如`LString`或`ZString`之类的信息可得知区块的大小，但是由于这个区块是给object所用，等于object大小，object构造函数自然不会越界。  
-  <img src="./imgs/embedding-pointers.png " width="50%">
-
-  ```
-  struct obj {
-    struct obj *free_list_link;
-  };
-  ```
-- 申请32bytes，由于pool为空，故索取并成功向pool注入`32*20*2+RoundUp(0>>4)=1280`，从中切出一个区块返回给客户，19个区块给`list#3`，剩640留用。
-  - 累计申请量：1280
-  - pool大小：640  
-  <img src="./imgs/alloc1.png " width="50%">
-- 申请64bytes，由于pool有余量，故取pool划分为640/64=10个区块，第一个给客户，剩9个给`list#7`
-  - 累计申请量：1280
-  - pool大小：0  
-  <img src="./imgs/alloc2.png " width="50%">
-- 申请96bytes，由于pool为空，故索取并成功向pool注入`96*20*2+RoundUp(1280>>4)`，从中切出一个区块返回给客户，19个区块给`list#11`，剩2000留用。
-  - 累计申请量：5200
-  - pool大小：2000   
-  <img src="./imgs/alloc3.png " width="50%">
-
-- 申请88bytes，由于pool有余量，故取pool划分为20个区块，从中切出一个区块返回给客户，19个区块给list#10，剩240留用。
-  - 累计申请量：5200
-  - pool大小：240  
-  <img src="./imgs/alloc4.png " width="50%">
-
-- 申请8bytes，由于pool有余量，故取pool划分为20个区块，从中切出一个区块返回给客户，19个区块给list#0，剩80留用。
-  - 累计申请量：5200
-  - pool大小：80  
-  <img src="./imgs/alloc5.png " width="50%">
-
-- 申请104，list#12为空，pool余量有不足供应1个，于是将pool余额分给list#9（碎片处理），然后向系统申请`104*20*2+RoundUp(5200>>4)`，从中切出一个区块返回给客户，19个区块给list#12，剩2408留用。
-  - 累计申请量：9688
-  - pool大小：2408  
-   <img src="./imgs/alloc6.png " width="50%">
-- **当无法继续向系统申请的时候，于是alloc从手中资源取最接近链表中取一块（例如，申请72，从80中取出一块），从中切出目的大小的给客户，剩余的当做暂配池。**
-
-
-## G2.9 `std::alloc`源码剖析
-G2.9有两级分配器，G4.9只有一级
-```
-#include <cstddef>
-#include <new>
-#define __THROW_BAD_ALLOC \
-    cerr << "out of memory"; exit(1)
-//---------------------------------------------------
-//第1级分配器
-//---------------------------------------------------
-template <int inst>
-class __malloc_alloc_tmeplate {
- private:
-  static void *oom_malloc(size_t);
-  static void *oom_realloc(void*, size_t);
-  static void (*__malloc_alloc_oom_handler)();
- public:
-  static void *allocate(size_t n) {
-    void *result = malloc(n);                       // 直接调用malloc
-    if(0 == n) result = oom_malloc(n);
-    return result;
-  }
-
-  static void deallocate(void *p, sizt_t) { free(p); }
-
-  static void *reallocate(void *p, size_t old_sz, size_t new_sz) {
-    void *result = remalloc(p, new_sz);
-    if(0 == reslut) result = oom_realloc(p, new_sz);
-    return result;
-  }
-
-  static void (*set_malloc_handler(void (*f)()))() {
-    void (*old)() = __malloc_alloc_oom_handler;   // 记住原来new_handler
-    __malloc_alloc_oom_handler = f;               // 把f记起来一遍后面调用
-    return (old);                                 // 把原来的handler传回以便日后恢复
-  }
-}
-
-template <int inst>
-void (*__malloc_alloc_template<inst>::__malloc_alloc_oom_hander)() = 0;
-
-template <int inst>
-void *__malloc_alloc_template<inst>::oom_malloc(size_t n) {
-  void (*my_malloc_handler)();
-  void *result;
-  for(;;) {  // 不断尝试释放、分配、再释放、再分配
-    my_malloc_handler = malloc_allco_oom_handler;
-    if(0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
-    (*my_malloc_hanlder)(); // 调用handler，企图释放memory
-    result = malloc(n); // 再次尝试分配memory
-    if(result) return(result);
-  }
-}
-
-template <int inst>
-void *__malloc_alloc_template<inst>::oom_realloc(void *p, size_t n) {
-  void (*my_malloc_handler)();
-  void *result;
-  for(;;) {
-    my_malloc_handler = malloc_allco_oom_handler;
-    if(0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
-    (*my_malloc_hanlder)(); // 调用handler，企图释放memory
-    result = remalloc(n); // 再次尝试分配memory
-    if(result) return(result);
-  }
-}
-
-typedef __malloc_alloc_template<0> malloc_alloc;
-
-//---------------------------------------------------
-//第二级分配器
-//---------------------------------------------------
-enum { __ALIGN = 8; }                            // 对齐，区块大小为8的倍数
-enum { __MAX_BYTES = 128; }                      // 区块的上界
-enum { __NFERRLISTS = __MAX_BYTES / __ALIGN; }   // free-list个数
-template <bool threads, int inst>
-class __default_alloc_template {
- private:
-  static size_t ROUND_UP(size_t bytes) {
-    return (((bytes) + __ALIGN - 1) & ~(__ALIGN - 1)); // 若bytes=13，则(13+7)&~(7)=16
-  }
-
-  union obj {
-    union obj *free_list_link;
-  };
-
-  static obj *volatile free_list[__NFREELISTS];
-  static size_t FREELIST_INDEX(size_t bytes) {  // 返回区块大小对于的索引
-    return (((bytes) + __ALIGN - 1) / __ALIGN - 1);
-  }
-
-  // 向系统申请，第一块返回个客户，剩下的挂到对于的链表中
-  static void *refill(size_t n);
-
-  // Allocate a chunk for nobjs of size "size". nobjs may be reduced
-  // if it is incovenient to allocate the requested number.
-  static char *chunk_alloc(size_t size, int &nobjs);
-
-  // Chunk allocation state
-  static char* start_free;   // 指向pool的头
-  static char* end_free;     // 指向pool的尾
-  static size_t heap_size;   // 分配累计量
-
- public:
-  static void *allocate(size_t n) {
-    obj *volatile *my_free_list;  // obj **
-    obj *result；
-    if(n > (size_t)__MAX_BYTES) { //改用第一级
-      return (malloc_alloc::allocate(n));
-    }
-    my_free_list = free_list + FREELIST_INDEX(n);
-    result = *my_free_list;
-    if(result == 0) { // list为空
-      void *r = refill(ROUND_UP(n));
-      return r;
-    } // 如果list有可用区块，取头个客户
-    *my_free_list = result->free_list_link;
-    return (result);
-  }
-
-  static void deallocate(void *p, size_t n) {
-    // 没有相应的检查，查看p所指的内存是否为此分配出去的
-    obj *q = (obj*)p;
-    obj *volatile *my_free_list;
-    if(n > (size_t)__MAX_BYTES) {
-      malloc_alloc::deallocate(p, n); // 改用第一级
-      return;
-    }
-    my_free_list = free_list + FREELIST_INDEX(n);
-    q->free_list_link = *my_free_list;
-    *my_free_list = q;
-  }
-
-  static void *reallocate(void *p, size_t old_sz, size_t new_sz);  // 忽略
-};
-
-// Return an object of size n, and optionally adds to size n free list.
-// We assume that n is properly aligned. We hold the allocation lock.
-template <bool threads, int inst>
-void *__default_alloc_template<threads, inst>::refill(size_t) {
-  int nobjs = 20; // 预设一次取20个，不一定能有20个
-  char *chunk = chunk_alloc(n, nobjs);  // nobjs是pass-by-reference
-  obj *volatile *my_free_list;
-  obj *result;
-  obj *current_obj;
-  obj *next_obj;
-  int i;
-  
-  if(1 == nobjs) return(chunk);  // 实际得1，交给客户
-  //以下开始讲所得的区块挂在free-list
-  my_free_list = free_list + FREELIST_INDEX(n);
-  // 在chunk内建立free-list
-  result = (*obj)chunk;
-  *my_free_list = next_obj = (*obj)(chunk + n);
-  for(i = 1; ; ++i) {
-    current_obj = next_obj;
-    next_obj = (*obj)((char*)next_obj + n);
-    if(nobjs - 1 == i) { // 最后一个
-      current_obj->free_list_link = 0;
-      break;
-    } else {
-      current_obj->free_list_link = next_obj;
-    }
-  }
-  return (result);
-}
-
-// We allocate memory in large chunks in order to avoid fragmenting the malloc too much.
-// We assume that size is properly aligned.
-// We hold the allocation lock
-template<bool threads, int inst>
-char *__default_alloc_template<threads, inst>::chunk_alloc(size_t size, int &nobjs) {
-  char *result;
-  size_t = total_bytes = size * nobjs;
-  size_t bytes_left = end_free - start_free;
-
-  if(bytes_left >= total_bytes) {               // pool 空间足以满足20块需求
-    result = start_free;
-    start_free += total_bytes;                  // 调整pool的大小
-    return (result);
-  } else if (bytes_left >= size) {              // pool的空间够一个（以上，不到20）区块的需求
-    nobjs = bytes_left / size;                  // 改变需求数（注意nobjs是pass-by-reference）
-    total_bytes = size * nobjs;                 // 改变需求总量（bytes)
-    result = start_free;
-    start_free += total_bytes;                  // 调整pool的大小
-    return (result);
-  } else {                                      // 不足以满足一块的需求（碎片处理）
-    size_t bytes_to_get =                       // 现在打算从system free-store取这么多来注入
-        2 * total_bytes + ROUND_UP(heap_size >> 4);
-    if(bytes_left > 0) {                        // 如果pool还有空间
-      obj* volatile *my_free_list =             // 找出应该挂到第几号free-list
-          free_list + FREELIST_INDEX(bytes_left)
-      // 将pool空间编入第#号free-list（肯定只成1块）
-      ((obj*)start_free)->free_list_link = *my_free_list;
-      *my_free_list = (obj*)start_free;
-    }
-    start_free = (char*)malloc(bytes_to_get);  // 从system free-store取这么多，注入pool
-    if(0 == start_free) {                      // 申请失败，以下试从free-list找区块
-      int i = 0;
-      obj* volatile *my_free_list, *p;         // my_free_list为obj**， p为obj*
-
-      // Try to make do with what we have. That can't hurt. We do not try smaller requests,
-      // since that tends to result in disaster on multi-process machines.
-      for(i = size; i < __MAX_BYTES; i += __ALIGN) {
-        my_free_list = free_list + FREELIST_INDEX(i);
-        p = *my_free_list;
-        if(0 != p) {                           // 该free-list内有可用区块，取出一块（only）给pool
-          *my_free_list = p -> free_list_link;
-          start_free = (char*)p;
-          end_free = start_free + i;
-          return (chunk_alloc(size, nobjs));   // 再试一次，此时的pool一定能够至少满足一块的需求，
-                                               // 而任何残余终将被编入free-list
-        }
-      }
-      // 至此，表示memory已经山穷水尽，改用第一级，看看new-handler能否解决
-      end_free = 0;
-      // 这回导致抛出异常，或导致memory不足的情况得到改善
-      start_free = (char*)malloc_alloc::allocate(bytes_to_get);
-    }
-    // 至此，表示已从system free-store成功取得很多memory
-    heap_size += bytes_to_get;                 // 改变累计分配量
-    end_free = start_free + bytes_to_get;      // 注入pool
-    return(chunk_alloc(size, nobjs));          // 再试一次
-  }
-}
-
-//---------------------------------------------------
-template <bool threads, int inst>
-char *__default_alloc_template<therads, inst>::start_free = 0;
-
-template <bool threads, int inst>
-char *__default_alloc_template<therads, inst>::end_free = 0;
-
-template <bool threads, int inst>
-char *__default_alloc_template<therads, inst>::heap_size = 0;
-
-template <bool threads, int inst>
-char *__default_alloc_template<therads, inst>::obj* volatile
-__default_alloc_template<therads, inst>::free_list[__NFREELISTS]
-    = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-//---------------------------------------------------
-
-// 令第二级分配器的名称为alloc
-typedef __default_alloc_template<false, 0> alloc;
-```
-
-# malloc/free (VC6.0)
-
-- VC6.0 Call Stack  
-  <img src="./imgs/vc-main.png" width="50%">
-
-- SBH之试 - `_heap_init()`和`__shb_heap_init()`  
-  CRT会先为自己建立一个`_crtheap`，然后从中配置SBH所需的header，regions作为管理之用。
-  ```
-  int __cdecl _heap_init(int mftlag) {  // 分配16个header
-    // Initialize the "big-block" heap first
-    if((_crtheap = HeapCreate(mtflag ? 0 : HEAP_NO_SERIALIZE, BYTES_PER_PAGE, 0)) == NULL)
-      retrun 0;
-    // Initialize the small-block heap
-    if(__sbh_heap_init() == 0) {
-      HeapDestroy(_crtheap);
-      return 0;
-    }
-    return 1;
-  }
-  ```
-  ```
-  int __cdecl __sbh_heap_init(void) {
-    if(!(__sbh_pHeaderList = HeapAlloc(_crtheap, 0, 16 * sizeof(HEADER))))
-      return FALSE;
-    __sbh_pHeaderScan      = __sbh_pHeaderList;
-    __sbh_pHeaderDefer     = NULL;
-    __sbh_cntHeaderDefer   = 0;
-    __sbh_sizeHeaderDefer  = 16;
-    return TRUE;
-  }
-  ```
+  void deallocate(pointer __p, size_type) { 
