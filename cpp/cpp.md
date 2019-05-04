@@ -210,3 +210,153 @@
 
 ## ch9 顺序容器
 
+- 容器操作
+  - 类型别名
+    - |iterator
+    - const_iterator
+    - size_type
+    - difference_type
+    - value_type
+    - reference
+    - const_reference
+  - 构造函数
+    - C c;
+    - C c1(c2);
+    - C c(b, e);
+    - C c{a, b, c...};
+  - 赋值与swap
+    - c1 = c2;
+    - c1 = {a, b, c...};
+    - a.swap(b);
+    - swap(a, b)
+  - 大小
+    - c.size()
+    - c.max_size()
+    - c.empty()
+  - 添加/删除元素
+    - c.insert(args)
+    - c.emplace(args)
+    - c.erase(args)
+    - c.clear()
+  - 关系运算
+    - ==, !=
+    - <, <=, >, >=
+  - 迭代器
+    - c.begin(), c.end()
+    - c.cbegin(), c.cend()
+    - c.rbegin(), c.rend()
+    - c.crbegin(), c.crend()
+    - reverse_iterator, const_reverse_iterator
+- 使用swap  
+  swap交换两个相同类型容器的内容，除array外，swap不对任何原色进行拷贝、删除或插入操作，因此可以保证在常数时间内完成
+- 容器元素是拷贝  
+  当我们用一个对象来初始化容器时，或将一个对象插入到容器中时，实际上放入到容器中的是对象值的一个拷贝，而不是对象本身
+- vector对象如何增长  
+  如果没有空间容纳新元素，必须分配新的内存空间（两倍增长），将已有元素从久位置移动到新空间，然后添加新元素，释放内存空间
+
+## ch10 泛型算法
+
+- 迭代器令算法不依赖与容器，但算法依赖于元素类型的操作  
+  泛型算法本身不会执行容器的操作，它们只会运行与迭代器之上，执行迭代器的操作
+- lambda表达式
+  - lambda表达式表示一个可调用的代码单元
+  - 具有一个返回类型、一个参数列表和一个函数体。具体形式  
+  `[capture list](parametr list) -> return type {function body }`
+  - `capture list`（捕获列表）是一个所在函数中定义的局部变量的列表
+  - 可以忽略参数列表和返回类型，但必须永远包含捕获列表和函数体
+  - lambda只能使用那些明确指明的变量，可以直接使用定义在当前函数之外的名字
+  - 类似参数传递，变量的捕获方式也可以是值或引用  
+  ```
+  void fcn() {
+    size_t v1 = 42;
+    auto f = [v1]() { return v1; } // 值捕获
+    //...
+  }
+
+  void fcn2() {
+    size_t v1 = 42;
+    auto f = [&v1]() { return v1; } // 引用捕获
+    //...
+  }
+  ```
+  - 隐式捕获，在捕获列表中写一个&=。  
+  &告诉编译器采用引用捕获方式，=则表示采用值捕获方式
+  - 可变lambda  
+  默认情况下，对于一个值拷贝的变量，lambda不会改变其值，在参数列表后加mutable可改变捕获变量的值  
+  `auto f = [v1]() mutable { return ++v1; }`
+  - 指定lambda返回类型  
+  默认情况下，如果一个lambda体包含return之外的任何语句，则编译器假定此lambda返回void  
+  必须使用尾置返回类型
+- bind函数  
+  接受一个可调用对象，生成一个新的可调用对象来“适应”原对象的参数列表，一般形式为：  
+  `auto newCallable = bind(callable, arg_list);`
+  
+## ch11关联容器
+
+- insert返回值  
+  添加单一元素的insert和emplace版本返回一个pair，告诉我们插入操作是否成功。pair的first成员是一个迭代器，指向具有给定关键字的元素;second成员是一个bool值，指出元素是插入成功还是失败
+- map的下表操作  
+  有则返回，无则创建并初始化
+- 无序容器  
+  - 无序容器在存储上组织为一组桶，每个桶保存零个或多个元素
+  - 使用一个哈希函数将元素映射到桶
+  - 具有一个特定哈希值的所有元素都保存在相同的桶中
+
+## ch12 动态内存
+
+- 智能指针
+  - shared_ptr：允许多个指针指向同一个对象
+  - unique_ptr：“独占”所指向的对象
+  - weak_ptr：伴随类，弱引用，指向shared_ptr所管理的对象
+- make_shared  
+  - `make_shared<T>(args)`使用arg初始化此对象
+  - 在动态内存中分配一个对象并初始化它，返回指向此对象的shared_ptr
+- shared_ptr
+  - 引用计数：每个shared_ptr都会记录有多少个其他shared_ptr指向相同的对象
+  - 当指向一个对象的最后一个shared_ptr被销毁时，shared_ptr类会自动销毁此对象
+  - 释放对象后，自动释放相关联的内存
+  - 可以用new返回的指针来初始化（构造函数为explicit，必须使用直接初始化形式）智能指针
+  - reset可以将一个新的指针赋予一个shared_ptr对象 `shared_ptr<int> p; p.reset(new int(10));`  
+  reset会更新引用计数，如果需要的话，会释放指向的对象
+  - 可以定义自己的释放操作（初始化时传入）
+- 智能指针陷阱
+  - 不使用相同的内置指针初始化（或reset）多个智能指针
+  - 不delete `get()`返回的指针
+  - 不使用`get()`初始化或reset另一个智能指针
+  - 如果你使用`get()`返回的指针，记住当最后一个对应的智能指针销毁后，你打指针变为无效了
+  - 如果你使用智能指针管理的资源不是new分配的内存，基础传递给它一个删除器
+- unique_ptr
+  - 某个时刻只能有一个unique_ptr指向一个给定的对象
+  - 没有对应的make_shared
+  - 绑定到new返回的指针时，必须直接初始化形式
+  - 不支持普通的拷贝或赋值操作
+  - `release()`或`reset()`将指针的所有权从一个（非const）unique_ptr转移给另一个unique_ptr  
+  release成员返回unique_ptr当前保存的指针并将其置为空
+- weak_ptr
+  - 指向一个shared_ptr管理的对象，不控制所指向对象生存期
+  - 不会改变shared_ptr的引用计数
+  - `lock()`检查weak_ptr指向的对象是否存在，若存在，返回一个指向共享对象的shared_ptr
+  - `use_count()`返回指向共享对象的shared_ptr的数量
+  - `expired()`若`use_count()`为0,返回true，否则返回false
+- 动态数组
+  - 申请：`Tp *p = new Tp[size]`（未初始化）或`Tp *p = new Tp[size]()`（初始化）
+  - 释放：`delete [] p;`
+  - 智能指针：`unique_ptr<Tp[]> up(new Tp[size])`
+- allocator  
+  将内存分配和对象构造分离
+  - 定义：`allocator<T> a;`
+  - 分配：`auto p = a.allocate(n);`
+  - 释放：`a.deallocate(p, n);`
+  - 构造：`a.construct(p, args);`
+  - 析构：`a.destroy(p);`
+  - 伴随算法，可以在未初始化内存中创建对象
+    - `uninitialized_copy(b, e, b2)`：[b, e)->b2（[b, e)拷贝元素到迭代器b2指定的未构造的原始内存中）
+    - `uninitialized_copy_n(b, n, b2)`：[b, b+n)->b2
+    - `uninitialized_fill(b, e, t)`：t->[b, e)（拷贝t到迭代器[b, e)指定的未构造的原始内存中）
+    - `uninitizlized_fill_n(b, n, t)`：t->[b, b+n)
+
+## ch13 拷贝控制
+
+- 拷贝构造函数
+  - 如果一个构造函数的第一个参数是自身类类型的应用，且任何外参数都有默认值，则此构造函数是拷贝构造函数
+  - 如果没有定义，编译器会为我们合成一个 
