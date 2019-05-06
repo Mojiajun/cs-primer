@@ -823,6 +823,144 @@ size_type bkt_num_key(const key_type& key, size_t n) const {
   }
   ```
 
+## 常用算法源码剖析
+
+- accumulate
+  ```
+  template <class InputIterator, class T>
+  T accumulate(InputIterator first, InputIterator last, T init) {
+    for(; first != last; ++first)
+      init = init + *first;
+    return init;
+  }
+
+  template <class InputIterator, class T, class BinaryOperator>
+  T accumulate(InputIterator first, InputIterator last,
+               T init, BinaryOperation binary_op) {
+    for(; first != last; ++first)
+      init = binary_op(init, *first);
+    return init;
+  }
+  ```
+- for_each
+  ```
+  template <class InputIterator, class Function>
+  Function for_each(InputIterator first, InputIterator last,
+                    Function f) {
+    for(; first != last; ++first)
+      f(*frist);
+    return f;
+  }
+  ```
+
+- replace, replace_if, replace_copy
+  ```
+  template <class ForwardIterator, class T>
+  void replace(ForwardIterator first,
+               ForwardIterator last,
+               const T& old_value,
+               const T& new_value) {
+    for(; first != last; ++first)
+      if(*first == old_value)
+        *first = new_value;
+  }
+
+  template <class InputIterator, class OutputIterator, class T>
+  OutputIterator replace_copy(InputItertor first,
+                              InputIterator last,
+                              OutputIterator result,
+                              const T& old_value,
+                              const T& new_value) {
+    for(; first != last; ++first, ++result)
+      *result = *first == old_value ? new_value : *first;
+    return result;
+  }
+
+  template <class ForwardIterator, class Predicate, class T>
+  void replace_if(ForwardIterator first,
+                  ForwardIterator last,
+                  Predicate pred,
+                  const T& new_value) {
+    for(; first != last; ++first)
+      if(pred(*first))
+        *first = new_value;
+  }
+  ```
+
+- count, count_if
+  ```
+  template <class InputIterator, class T>
+  typename iterator_traits<InputIterator>::difference_type
+  count(InputIterator first, InputIterator last, const T& value) {
+    typename iterator_traits<InputIterator>::difference_type n = 0;
+    for(; first != last; ++first)
+      if(*fist == value)
+        ++n;
+    return n;
+  }
+
+  template <class InputIterator, class Predicate>
+  typename iterator_traits<InputIterator>::difference_type
+  count_if(InputIterator first, InputIterator last, Predict pred) {
+    typename iterator_traits<InputIterator>::difference_type n = 0;
+    for(; first != last; ++first)
+      if(pred(*first))
+        ++n;
+    return n;
+  }
+  ```
+  容器不带成员函数`count()`：array, vector, list, forward_list, deque  
+  容器不带成员函数`count()`：set/multiset, map/multimap, unordered_set/unordered_multiset, unordered_map/unordered_multimap
+
+- find, find_if
+  ```
+  template <class InputIterator, class T>
+  InputIterator find(InputIterator first, InputIterator last, const T& value) {
+    while(first != last && *first != value)
+      ++first;
+    return first;
+  }
+
+  template <class InputIterator, class Predicate>
+  InputIterator find_if(InputIterator first, InputIterator last,
+                        Predicate pred) {
+    while(first != last && !pred(*first))
+      ++first;
+    return first;
+  }
+  ```
+  容器不带成员函数`find()`：array, vector, list, forward_list, deque  
+  容器不带成员函数`find()`：set/multiset, map/multimap, unordered_set/unordered_multiset, unordered_map/unordered_multimap
+
+- binary_search, lower_bound, upper_bound
+  ```
+  template <class ForwardIterator, class T>
+  bool binary_search(ForwardIterator first, ForwardIterator last,
+                     const T& val) {
+    first = std::lower_bounder(first, last, val);
+    return (first != last && !(val < *first>));
+  }
+
+  template <class ForwardIterator, class T>
+  ForwardIterator lower_bound(ForwardIterator first,
+                              ForwardIterator last,
+                              const T& val) {
+    ForwardIterator it;
+    iterator_traits<ForwardIterator>::difference_type count, step;
+    count = distance(first, last);
+    while(count > 0) {
+      it = first; step = count / 2; advance(it, step);
+      if(*it < val) {
+        first = ++it;
+        count -= step + 1；
+      }
+      else
+        count = step;
+    }
+    return first;
+  }
+  ```
+
 ## 仿函数functors
 
 仿函数`functors`的可适配（adaptable）条件
@@ -860,14 +998,142 @@ class binder2nd:
     return op(x, value);
   }
 };
+
+template <class Operation, class T>
+inline binder2nd<Operation> bind2nd(const Operation& op, const T& x) {
+  typedef typename Operation::second_argument_type arg2_type;
+  return binder2nd<Operation>(op, arg2_type(x));
+}
 ```
 
 ## 适配器Adapter
 
 - 容器适配器：stack，queue
 - 函数适配器：binder2nd, not, bind
+  ```
+  // binder2nd见上面
+
+  template <class Predicate>
+  class unary_negate
+    : public unary_function<typename Predicate::argument_type, bool> {
+   protected:
+    Predicate pred;
+   public:
+    explicit unary_negate(const Predicate& x): pred(x) {}
+    bool operator()(const typename Predicate::argument_type& x) const {
+      return !pred(x);
+    }
+  };
+
+  template <class Predicate>
+  inline unary_negate<Predict> not1(const Predicate& pred) {
+    return unary_negate<Predict>(pred);
+  }
+  ```
 - 迭代器适配器：reverse_iterator, inserter
+  ```
+  template <class Iterator>
+  class reverse_iterator {
+   protected:
+    Iterator current;
+   public:
+    typedef typename iterator_traits<Iterator>::iterator_category iterator_category;
+    typedef typename iterator_traits<Iterator>::value_type value_type;
+    //...
+    typedef Iterator iterator_type;
+    typedef reverse_iterator<Iterator> self;
+   pubic:
+    explic reverse_iterator(iterator_type x): current(x) {}
+    reverse_iterator(const self& x): current(x) {}
+    iterator_type base() const { return current; }
+    reference operator*() const { Iterator tmp = current; return *--tmp; }
+    pointer operator->() const { return &(operator*()); }
+
+    self& operator++() { --current; return *this; }
+    self& operator--() { ++current; return *this; }
+    self operator+(difference_type n) const { return self(current - n); }
+    self operator-(difference_type n) const { return self(current + n); }
+  };
+
+  template <class Container>
+  class insert_iterator {
+   protected:
+    Container* container;
+    typename Container::iterator iter;
+   public:
+    typedef output_iterator_tag iterator_category;
+    inset_iterator(Container& x, typename Container::iterator i)
+      : container(&x), iter(i) {}
+    insert_iterator<Container>&
+    operator=(const typename Container::value_type& value) {
+      iter = container->insert(iter, value);
+      ++iter;
+      return *this;
+    }
+  };
+
+  template <class Container, class Iterator>
+  inline insert_iterator<Container>
+  insert(Container& x, Iterator i) {
+    typedef typename Container::iterator iter;
+    return insert_iterator<Container>(x, iter(i));
+  }
+  ```
 - X适配器：ostream_iterator, istream_iterator
+  ```
+  template <class T, class charT=char, class traits=char_traits<charT>>
+  class ostream_iterator
+    : public iterator<output_iterator_tag, void, void, void, void> {
+    basic_ostream<charT, traits> *out_stream;
+    const charT* delim;
+   public:
+    typedef charT char_type;
+    typedef traits traits_type;
+    typedef basic_ostream<charT, traits> ostream_type;
+    ostream_iterator(ostream_type& s): out_stream(s), delim(0) {}
+    ostream_iterator(ostream_type& s, const charT* delimiter)
+      : out_stream(s), delim(delimiter) {}
+    ostream_iterator(const ostream_iterator<T, charT, traits> &x)
+      : out_stream(x.out_stream), delim(x.delim) {}
+    ~ostream_iterator() {}
+    ostream_iterator<T, charT, traits>& operator=(const T& value) {
+      *out_stream << value;
+      if(delim) *out_stream << delim;
+      return *this;
+    }
+    ostream_iterator<T, charT, traits>& operator*() { return *this; }
+    ostream_iterator<T, charT, traits>& operator++() { return *this; }
+    ostream_iterator<T, charT, traits>& operator++(int) { return *this; }
+  };
+
+  template <class T, class charT=char, class traits=char_traits<charT>,
+            class Distance=ptrdiff_t>
+  class istream_iterator
+    : public iterator<input_iterator_tag, T, Distance, const T*, const T&> {
+    basic_istream<charT, traits> *in_stream;
+    T value;
+   public:
+    typedef charT char_type;
+    typedef traits traits_type;
+    typedef basic_istream<charT, traits> istream_type;
+    istream_iterator(): in_stream(0) {}
+    istream_iterator(istream_type& s): in_stream(s) { ++*this; }
+    ostream_iterator(const ostream_iterator<T, charT, traits, Distance> &x)
+      : in_stream(x.in_stream), value(x.value) {}
+    ~ostream_iterator() {}
+    const T& operator*() { return value; }
+    const T& operator->() { return &value; }
+    istream_iterator<T, charT, traits, Distance>& operator++() {
+      if(in_stream && !(in_stream >> value))in_stream = 0;
+      return *this;
+    }
+    istream_iterator<T, charT, traits, Distance>& operator++(int) {
+      istream_iterator<T, charT, traits, Distance> tmp = *this;
+      ++*this;
+      return tmp;
+    }
+  };
+  ```
 
 ## 一个万用的Hash Function
 
