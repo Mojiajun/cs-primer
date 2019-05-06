@@ -891,3 +891,8 @@
     - `tellg()`、`tellp()`                     // 当前位置
     - `seekg(pos)`、`seekp(pos)`               // 重定位，pos是绝对地址，tell返回
     - `seekp(off, from)`、`seekg(off, from)`   // 重定位，相对于from（`beg`、`cur`、`end`）
+
+## ch18 用于大型程序的工具
+
+- 异常处理
+- 
