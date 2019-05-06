@@ -817,4 +817,77 @@
       ```
       用int之外的任何类型使用Foo，成员像往常一样实例化。用int使用Foo，Bar之外的成员向往常一样实例化，Bar会用特例化版本
       
-      
+## ch17 标准库特殊设施
+
+- tuple
+  - 成员类型可以不用，任意数量（一旦确定，数目不再改变）
+  - 定义和初始化
+    ```
+    // 没有初始化列表方式
+    #include <tuple>
+    tuple<T1, T2, ..., Tn> t;
+    tuple<T1, T2, ..., Tn> t(v1, v2, ..., vn);
+    auto t = make_tuple(v1, v2, ..., vn);
+    ```
+  - 访问tuple的成员
+    ```
+    get<i>(t);                         // 第i个值的引用（左值->左值引用，右值->右值引用）
+    tuple_size<tupleType>::value;      // tuple的成员数量， tupleType可有`decltype`获取
+    tuple_element<i, tupleType>::type; // tuple指定成员的类型
+    ```
+  - 关系运算符`==`、`!=`
+- bitset类型  
+  类似array，具有固定大小，定义时需要指定包含多少个二进制位
+  - 定义和初始化
+    ```
+    #include <bitset>
+    bitset<n> b;                        // n为全0
+    bitset<n> b(u);                     // unsigned long long值u的低n位的拷贝（高位丢弃或高位补零）
+    bitset<n> b(s, pos, m, zero, one);  // string s（只有‘1’或‘0’）从位置pos开始m个字符的拷贝
+    bitset<n> b(cp, pos, m, zero, one); // cp指向字符数组
+    ```
+  - bitset的操作
+- 随机数
+  - 随机数库(#include <random>)
+    - 随机数引擎类：生成随机数unsigned整数序列
+      - 接受种子，构造时指定（未指定使用默认种子值）或`seed(int)`指定
+      - 默认引擎（`default_random_engine`）
+    - 随机数分类类：使用引擎返回服从特定概率分布的随机数
+  - 分布类型和引擎
+    - 某个范围的平均分布  
+      ```
+      uniform_int_distribution<unsigned> ui(0, 9); // 0～9 unisigned int
+      uniform_real_distribution<double> ud(0, 1);  // 0～1 double
+      default_random_engine e1;
+      default_random_engine e2(SEED);  // 设种子
+      e1.seed(SEED);                   // 设种子
+      cout << u1(e1) << u2(e2);
+      ```
+    - 正态分布
+      ```
+      default_random_engin e;
+      normal_distribution<> n(mean, std);  // 默认生成double值
+      ```
+    - bernoulli_distribution
+      ```
+      default_random_engine e;
+      bernoulli_distribution b; // 没有参数
+      cout << b(e);
+      ```
+- IO库再探
+  - 格式化输入与输出
+    - 控制布尔值的格式 `boolalpha`、`noboolalpha`
+    - 指定整型的进制 `hex`、`oct`、`dec`将其改为十六进制、八进制或改回十进制
+      - 十六进制默认小写，`uppercase`可改成大些，`nouppercase`改回
+    - 在输出中指出进制 `showbase`、`noshowbase`
+    - 打印精度 `precision`、`setprecision(int)`
+    - 科学计数法 `scientific`
+    - 打印小数点 `showpoint`、`noshowpoint`
+    - 输出补白 `setw`、`left`、`right`、`setfill`
+  - 未格式化的输入/输出操作
+    - 单字节操作 `get`、`put`
+    - 将字符放回输入流 `peek`、`unget`、`putback`
+  - 流随机访问（g输入流，p输出流）
+    - `tellg()`、`tellp()`                     // 当前位置
+    - `seekg(pos)`、`seekp(pos)`               // 重定位，pos是绝对地址，tell返回
+    - `seekp(off, from)`、`seekg(off, from)`   // 重定位，相对于from（`beg`、`cur`、`end`）
