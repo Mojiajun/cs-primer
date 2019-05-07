@@ -183,7 +183,7 @@ class Foo {
    void *operator new(size_t);
    void *operator new[](size_t);
    void operator delete(void*, size_t); // size_t is optional
-   void operator delete(void*, size_t);
+   void operator delete[](void*, size_t);
 }
 ```
 
