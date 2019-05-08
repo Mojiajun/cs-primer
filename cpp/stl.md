@@ -77,12 +77,12 @@ class new_allocator {
     ...
   };
   ```
-  <img src="./imgs/stl-iterator-traits.png" width="50%">
+  <img src="./imgs/stl-iterator-traits.png" width="100%">
 
 - Traits特性
   - `Iterator Traits`用以区分`class iterators`和`non-class iterators`
   - 这个traits机器必须有能力区分它所获得的iterator是(1)`class iterator T`或是(2)`native pointer to T`。利用`partial specialization`(偏特化)可达到目标。
-  <img src="./imgs/stl-iterator-traits1.png" width="50%">  
+  <img src="./imgs/stl-iterator-traits1.png" width="100%">  
   ```
   // 完整的iterator_traits
   template <class I>
@@ -119,7 +119,7 @@ class new_allocator {
 
 ## 容器vector深度探索
 
-<img src="./imgs/stl-vector.png" width="50%">  
+<img src="./imgs/stl-vector.png" width="100%">  
 
 ```
 template <class T, class Alloc=alloc>
@@ -199,7 +199,7 @@ void vector<T, Alloc>::insert_aux(iterator position, const T& x) {
 
 ## 容器list深度探索
 
-<img src="./imgs/stl-list.png" width="50%">
+<img src="./imgs/stl-list.png" width="100%">
 
 ```
 template<class T>
@@ -255,7 +255,7 @@ struct __list_iterator {
   - 前置++返回是是引用，后置++返回的是值；--也是类似；
   - 当你对某个type实施`operator->`而该type并非build-in指针时，编译器会做一件有趣的事情：在找出user-defined `operator->`并将它实施于该type后，编译器会对执行结果再次实施`operator->`。编译器不断执行这个动作直到触及一个build-in指针，然后才进行成员存取。
   - G4.9的改进  
-  <img src="./imgs/stl-list-com.png" width="50%">
+  <img src="./imgs/stl-list-com.png" width="100%">
 
 ## 容器array深度探索
 
@@ -280,7 +280,7 @@ struct array {
 
 ## 容器deque深度探索
 
-<img src="./imgs/stl-deque.png" width="50%">
+<img src="./imgs/stl-deque.png" width="100%">
 
 ```
 //G2.9
@@ -1201,7 +1201,7 @@ class tuple<Head, Tail...>: private tuple<Tail...> {
   Head m_head;
 };
 ```
-<img src="imgs/stl-tuple.png" width="50%">
+<img src="imgs/stl-tuple.png" width="100%">
 
 ## type traits
 
