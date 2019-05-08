@@ -2,7 +2,7 @@
 
 ## C++ 应用程序
 
-<img src="./imgs/cpp-app.png " width="30%">
+<img src="./imgs/cpp-app.png " width="100%">
 
 ## C++ memory primitives
 |分配|释放|类属|可否重载|
@@ -56,7 +56,7 @@ try {
   // 不执行constuction
 }
 
-// operator new(sizeof(Complex))的底层(vc)
+// operator new(sizeof(Complex))的底层(VC为例)
 void *operator new(size_t size, const std::nothrow_t&)_THROW0() {
   void *p;
   while((p==malloc(size))==0) {
@@ -76,7 +76,7 @@ Complex *pc = new Complex(1, 2);
 delete pc;
 
 // 编译器转化为  
-pc->~Complex(); //先析构  
+pc->~Complex();      //先析构  
 operator detele(pc); //然后释放内存
 
 // operator delete(pc)底层  
@@ -99,13 +99,13 @@ delete[] pca; // 调用3次析构函数
 delete缺失[]一定会有内存泄露吗？
 - 对class without pointer member可能没影响
 - 对class with pointer member通常有影响  
-<img src="./imgs/mm-leak.png " width="70%">
+<img src="./imgs/mm-leak.png " width="80%">
 
 ## placement new
 
 - placement new允许我们将构造于allocated memory中
 - 没有所谓的placement delete，因为placement new根本没有分配memory。
-- 与placement new对应的operator new称为placement delete
+- 与placement new对应的operator delete称为placement delete
 - 重载的时候要写一个placement delete与placement new对应
 
 例如
@@ -144,7 +144,7 @@ void *operator new(size_t, void* loc) {
 <img src="./imgs/mm-container.png " width="70%">
 
 ## 重载::operator new / ::operator delete
-- 重载全局函数的影响无远弗届
+- 重载全局函数的影响无远弗界
 ```
 void *myAlloc(size_t size) {
   return malloc(size);
@@ -152,7 +152,7 @@ void *myAlloc(size_t size) {
 void myFree(void *ptr) {
   return free(ptr);
 }
-// 他们不可以声明与一个namespace内
+// 它们不可以声明与一个namespace内
 inline void *operator new(size_t size) {
   cout << "overload global new()\n";
   return myAlloc(size);
@@ -189,7 +189,7 @@ class Foo {
 
 ## 重载placement new: new() / delete() 
 
-- 我们可以重载class member `operator new()`，写出多个版本，前提是每一个版本的声明都必须有独特的参数列，其中第一个参数不许是`size_t`，其余参数以`new`所指定的`placement arguments`为初值。出现`new(...)`小括号内的便是所谓`placement new`。
+- 我们可以重载class member `operator new()`，写出多个版本，前提是每一个版本的声明都必须有独特的参数列表，其中第一个参数必须是`size_t`，其余参数以`new`所指定的`placement arguments`为初值。出现`new(...)`小括号内的便是所谓`placement new`。
 - 我们也可以重载class member `operator delete()`，写出多个版本。但他们绝不会被`delete`调用。<u>**只有当`new`所调用的构造函数抛出exception，才会调用这些重载版本的`operator delete()`**</u>。它只可能这样被调用，主要用来<u>**归还未能完全创建成功的object所占用的内存**</u>。
 - placement new和placement delete参数对应关系
   - placement new第一个参数必须是size_t；placement delete第一个参数是void*
@@ -321,7 +321,7 @@ class Foo {
   ```
 
 - version3-  static allocator  
-  当你受困于必须为不同的classes重写一遍几乎相同的member operator new和member operator delete时，应该有方法将一个总是分配特定尺寸区块的memory allocator概念包装起来，是他容易被重复使用。一下展示一种做法，每个allocator object都是一个分配器，它维持一个free list；不同的allocator objects维持不用的free list。
+  当你受困于必须为不同的classes重写一遍几乎相同的member operator new和member operator delete时，应该有方法将一个总是分配特定尺寸区块的memory allocator概念包装起来，是他容易被重复使用。以下展示一种做法，每个allocator object都是一个分配器，它维持一个free list；不同的allocator objects维持不用的free list。
   ```
   class allocator {
    public:
@@ -402,10 +402,10 @@ class Foo {
 ## global allocator (with multiple free-lists)
 
 将前述allocator进一步发展为具有16条free-lists，并以此不再以application classes内的static呈现，而是一个global allocator -- 这就是GNU2.9的std::alloc的雏形。
-<img src="./imgs/mflist.png " width="70%">
+<img src="./imgs/mflist.png " width="100%">
 
 ## new handler
-当operator new没有能力为你分配出你申请的memory，会抛出一个`std::bad_alloc exception`。某些老式编译器则是返回0--你仍然可以领编译器那么做：  
+当operator new没有能力为你分配出你申请的memory，会抛出一个`std::bad_alloc exception`。某些老式编译器则是返回0--你仍然可以令编译器那么做：  
 `new(nothrow) Foo;`  
 此为<u>nothrow形式</u>。
 
@@ -537,11 +537,11 @@ class allocator: public __allocator_base<_Tp> { //...}
 
 - 负责[8, 128]bytes内存的分配，必须是8的倍数，不是的话，补齐。大于128bytes，直接调用`malloc`分配  
   `std::alloc`在向操作系统申请的时候，每次申请20+20个。后20个大小的内存块当做暂配池，后继申请，首先从暂配池中查找，如果有并且可以切个出一个，就切割；否者再去申请。但是每次最多切割20个。  
-  <img src="./imgs/std_alloc.png " width="50%">
+  <img src="./imgs/std_alloc.png " width="100%">
 
 - 嵌入式指针（embedding pointers）
   当客户端获得小区块，获得的即是`char *`（指向某个union object）。此时虽然客户端没有诸如`LString`或`ZString`之类的信息可得知区块的大小，但是由于这个区块是给object所用，等于object大小，object构造函数自然不会越界。  
-  <img src="./imgs/embedding-pointers.png " width="50%">
+  <img src="./imgs/embedding-pointers.png " width="100%">
 
   ```
   struct obj {
@@ -551,30 +551,30 @@ class allocator: public __allocator_base<_Tp> { //...}
 - 申请32bytes，由于pool为空，故索取并成功向pool注入`32*20*2+RoundUp(0>>4)=1280`，从中切出一个区块返回给客户，19个区块给`list#3`，剩640留用。
   - 累计申请量：1280
   - pool大小：640  
-  <img src="./imgs/alloc1.png " width="50%">
+  <img src="./imgs/alloc1.png " width="100%">
 - 申请64bytes，由于pool有余量，故取pool划分为640/64=10个区块，第一个给客户，剩9个给`list#7`
   - 累计申请量：1280
   - pool大小：0  
-  <img src="./imgs/alloc2.png " width="50%">
+  <img src="./imgs/alloc2.png " width="100%">
 - 申请96bytes，由于pool为空，故索取并成功向pool注入`96*20*2+RoundUp(1280>>4)`，从中切出一个区块返回给客户，19个区块给`list#11`，剩2000留用。
   - 累计申请量：5200
   - pool大小：2000   
-  <img src="./imgs/alloc3.png " width="50%">
+  <img src="./imgs/alloc3.png " width="100%">
 
 - 申请88bytes，由于pool有余量，故取pool划分为20个区块，从中切出一个区块返回给客户，19个区块给list#10，剩240留用。
   - 累计申请量：5200
   - pool大小：240  
-  <img src="./imgs/alloc4.png " width="50%">
+  <img src="./imgs/alloc4.png " width="100%">
 
 - 申请8bytes，由于pool有余量，故取pool划分为20个区块，从中切出一个区块返回给客户，19个区块给list#0，剩80留用。
   - 累计申请量：5200
   - pool大小：80  
-  <img src="./imgs/alloc5.png " width="50%">
+  <img src="./imgs/alloc5.png " width="100%">
 
 - 申请104，list#12为空，pool余量有不足供应1个，于是将pool余额分给list#9（碎片处理），然后向系统申请`104*20*2+RoundUp(5200>>4)`，从中切出一个区块返回给客户，19个区块给list#12，剩2408留用。
   - 累计申请量：9688
   - pool大小：2408  
-   <img src="./imgs/alloc6.png " width="50%">
+   <img src="./imgs/alloc6.png " width="100%">
 - **当无法继续向系统申请的时候，于是alloc从手中资源取最接近链表中取一块（例如，申请72，从80中取出一块），从中切出目的大小的给客户，剩余的当做暂配池。**
 
 
@@ -693,7 +693,7 @@ class __default_alloc_template {
     if(result == 0) { // list为空
       void *r = refill(ROUND_UP(n));
       return r;
-    } // 如果list有可用区块，取头个客户
+    } // 如果list有可用区块，取头一个客户
     *my_free_list = result->free_list_link;
     return (result);
   }
@@ -827,7 +827,7 @@ typedef __default_alloc_template<false, 0> alloc;
 # malloc/free (VC6.0)
 
 - VC6.0 Call Stack  
-  <img src="./imgs/vc-main.png" width="50%">
+  <img src="./imgs/vc-main.png" width="100%">
 
 - SBH之试 - `_heap_init()`和`__shb_heap_init()`  
   CRT会先为自己建立一个`_crtheap`，然后从中配置SBH所需的header，regions作为管理之用。
