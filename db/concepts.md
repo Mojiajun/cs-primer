@@ -390,3 +390,65 @@
   - 设置触发器的条件
     - 指明什么条件下执行触发器。它被分解成一个引起触发器被检测的事件和一个触发器执行必须满足的条件
     - 指明触发器执行是的动作
+
+## 形式化关系查询语言
+
+- 关系代数
+  - 一种过程化查询语言。它包括一个运算的集合，这些运算以一个或两个关系为输入，产生一个新的关系作为结果
+- 基本运算
+  - 选择运算：选出满足给定谓词的元组
+    - ${\sigma}_{P}(r)=\{ t|t \in r \; and \; P(t)\}$
+    - 例如：${\sigma}_{dept_name="Physics" \wedge salary>9000}(instructor)$，表示选择关系instructor中属于Physics系，工资大于90000那些元组
+    - 谓词支持的操作
+      - 比较（$=$, $\neq$, $=$, $\leq$, $>$, $\geq$）
+      - 逻辑（and($\wedge$)、or($\vee$)、not($\displaystyle \neg$)）
+  - 投影运算：返回作为参数的关系，但把某些属性排除在外
+    - ${\Pi}_{A_1,A_2,\ldots,A_m}(r)$
+    - 例如：${\Pi}_{ID,name,salary}(instructor)$，表示选出所有教师的ID、name和salary
+  - 关系运算的组合
+    - ${\Pi}_{name}({\sigma}_{dept_name="Physics"}(instructor))$
+  - 并运算
+    - $r \bigcup s =\{ t|t \in r \; or \; t \in s\}$
+    - 关系r和s必须是同元的，即他们的属性数目必须相同
+    - 对所有的i，r的第i个属性的域必须和s的第i个属性的域相同
+    - 例如：${\Pi}_{couse_id}({\sigma}_{semester="Fall"\wedge year=2009}(section)) \bigcup {\Pi}_{couse_id}({\sigma}_{semester="Spring"\wedge year=2010}(section))$，表示2009年秋季和2010春季开设的课程
+  - 差运算
+    - $r - s =\{ t|t \in r \; or \; t \notin s\}$
+    - 关系r和s必须是同元的，即他们的属性数目必须相同
+    - 对所有的i，r的第i个属性的域必须和s的第i个属性的域相同
+    - 例如：${\Pi}_{couse_id}({\sigma}_{semester="Fall"\wedge year=2009}(section)) - {\Pi}_{couse_id}({\sigma}_{semester="Spring"\wedge year=2010}(section))$，表示在2009年秋季但步骤2010年春季开设的课程
+  - 笛卡儿积运算
+    - $r \times s =\{ tq|t \in r \; and \; t \in s\}$
+    - 例如：${\Pi}_{name,course_id}({\sigma}_{instructor.ID=teaches.ID}({\sigma}_{dept_name="Physics"}(instructor \times teaches)))$，表示物理系的所有教师，以及他们教授的所有课程
+  - 更名运算
+    - ${\rho}_{x(A_1,A_2, \ldots, A_n)}(E)$，返回表达式E的结果，并赋予给它名字x，同时将个属性名更名为A1，A2,..., An
+    - 例如：找出大学里的最高工资
+      - step1 找出非最高工资构成的临时关系   
+        ${\Pi}_{instructor.salary}({\sigma}_{instructor.salary<d.salary}(instructor \times {\rho}_{d}(instructor)))$
+      - ste2 查找大学里最高工资  
+        ${\Pi}_{salary}(instructor)-{\Pi}_{instructor.salary}({\sigma}_{instructor.salary<d.salary}(instructor \times {\rho}_{d}(instructor)))$
+  - 附加的关系代数运算
+    - 集合交运算
+      - $r \bigcap s=r-(r-s)  =\{ t|t \in r \; and \; t \in s\}$
+      - ${\Pi}_{couse_id}({\sigma}_{semester="Fall"\wedge year=2009}(section)) \bigcap {\Pi}_{couse_id}({\sigma}_{semester="Spring"\wedge year=2010}(section))$
+    - 自然连接运算
+      - $r \bowtie s = {\Pi}_{R \bigcup S}({\sigma}_{r.A_1=s.A_1 \wedge r.A_2=s.A_2 \wedge...\wedge r.A_n=s.A_n})(r \times s))$
+      - 例如
+        - R = (A, B, C, D)
+        - S = (E, B, D)
+        - $R \bigcup S$=(A, B, C, D, E)
+    - Theta连接
+      - $r {\bowtie}_{\theta} s = {\sigma}_{\theta}(r \times s)$
+    - 赋值运算
+      - $temp \leftarrow E$
+    - 外连接运算
+      - 左外连接
+      - 右外连接
+      - 全连接
+  - 扩展的关系代数运算
+    - 广义投影：允许在投影列表中使用算术运算和字符串函数
+      - ${\Pi}_{ID,name,dept_name,salary/12}(instructor)$
+    - 聚集运算${\mathcal G}$
+      - ${\mathcal G}_{sum(salary)}(instructor)$
+      - ${\mathcal G}_{count\_distinct(ID)}({\sigma}_{semester="Spring" \wedge year=2010}(teaches))$
+      - ${_{dept_name}}{\mathcal G}_{sum(salary)}(instructor)$
