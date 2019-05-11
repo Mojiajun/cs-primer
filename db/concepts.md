@@ -452,3 +452,136 @@
       - ${\mathcal G}_{sum(salary)}(instructor)$
       - ${\mathcal G}_{count\_distinct(ID)}({\sigma}_{semester="Spring" \wedge year=2010}(teaches))$
       - ${_{dept_name}}{\mathcal G}_{sum(salary)}(instructor)$
+
+## 数据库设计和E-R模型
+
+- 实体-联系模型
+  - 实体集
+    - 实体：现实世界可区别于所有其他对象的一个“事务”或“对象”，通过一组属性来表示。
+    - 实体集：相同类型即具有相同性质（或属性）的一个实体集合
+    - 属性：实体集中每个成员所拥有的描述性性质
+  - 联系集
+    - 联系：多个实体间的相互关联
+    - 联系集：相同类型联系的集合
+  - 属性
+    - 域：每个属性可能取值的集合
+- 约束
+  - 映射基数  
+    一个实体通过一个联系集能关联的实体的个数
+    - 一对一
+    - 一对多
+    - 多对一
+    - 多对多
+  - 参与约束
+  - 码
+- 实体-联系图（E-R图）
+  - **分成两部分的矩形**代表实体集
+  - **菱形**代表联系集
+  - **未分割的矩形**代表联系集的属性
+  - **线段**将实体集连接到联系集
+  - **虚线**将联系集属性连接到联系集
+  - **双线**显示实体在联系集中的参与度
+  - **双菱形**代表连接到弱实体集的标志性联系集
+
+## 关系数据库设计
+
+- 目的
+  - 生成一组关系模式，使我们存储信息时避免不必要的冗余，并且让我们可以方便地获取信息
+- 原子域
+  - 该域的元素是不可拆分的单元，不具有任何子结构
+- 第一范式（First Normal Form, 1NF）
+  - 如果一个关系的所有属性的域都是原子的（原子域），则该关系模式属于第一范式
+
+- 符号说明
+  - 希腊字母表示属性集（如 $\alpha$）
+  - 关系模式 $r(R)$，表示该模式是关系r的，R表示属性集，可以省略关系r，只用R
+  - 当属性集是一个超码时，用 $K$ 表示它
+  - 对关系使用小写的名字（如 $instructor$）
+  - 当明显在讨论一个实例时，可以仅用关系的名字（如 $r$）
+- 合法实例
+  - 满足所有现实世界约束的关系的实例
+- 函数依赖（类比$x \rightarrow y: y=f(x)$）
+  - 考虑一个关系模式$r(R)$，令$\alpha \subseteq R$且$\beta \subseteq R$
+    - 给定$r(R)$一个的一个实例，这个实例**满足函数依赖**$\alpha \rightarrow \beta$的条件是：对实例中所有元组$t_1$和$t_2$，若$t_1[\alpha]=t_2[\alpha]$，则$t_1[\beta]=t_2[\beta]$
+    - 如果$r(R)$的每个合法实例中都满足函数依赖$\alpha \rightarrow \beta$，则我们说函数依赖在模式$r(R)$上成立
+  - 例如： $inst\_dept(ID, name, salary, dept\_name, buidling, budget)$
+    - 函数依赖 $dept\_name \rightarrow budget$ 成立
+    - 属性对$(ID, dept\_name)$构成$inst\_dept$的一个超码，也就是$ID, dept\_name \rightarrow name, salary, building, budget$
+  - 平凡性
+    - 如果一个函数依赖在所有关系中都满足，则他是平凡的
+    - 一般的，如果$\beta \subseteq \alpha$，则形如$\alpha \rightarrow \beta$的函数依赖是平凡的
+    - $A \rightarrow A$，$BA \rightarrow A$
+- 部分函数依赖
+  - 函数依赖$\alpha \rightarrow \beta$称为部分函数依赖的条件是：存在一个$\alpha$的真子集$\gamma$使得$\gamma \rightarrow \beta$。称$\beta$部分函数依赖于$\alpha$
+- 完全函数依赖
+  - 函数依赖$\alpha \rightarrow \beta$称为完全函数依赖的条件是：不存在$\alpha$的真子集$\gamma$使得$\gamma \rightarrow \beta$。称$\beta$完全函数依赖于$\alpha$
+- 传递函数依赖
+  - 函数依赖$\alpha \rightarrow \beta$称为传递函数依赖的条件是：如果$\alpha \rightarrow \gamma$，$(\gamma \nsubseteq \alpha)$，并且$\gamma \rightarrow \beta$。称$\beta$传递函数依赖于$\alpha$
+- 码：唯一表示关系中一条元组的一个或多个属性的集合（重新定义如下）
+  - 令$r(R)$是一个关系模型。$R$的子集$K$是$r(R)$的超码的条件是：在关系$r(R)$的任意合法实例中，对于$r$的实例的所有元组对$t_1$和$t_2$总满足，若$t_1 \neq t_2$，则$t_1[K] \neq t_2[K]$。也就是说，在关系$r(R)$的任意合法实例中没有两条元组在属性集$K$可能具有相同的值
+  - 如果函数依赖 $K \rightarrow R$ 在 $r(R$ 上成立，则$K$是$r(R)$的一个超码
+- 候选码
+  - 如果完全函数依赖 $K \rightarrow R$ 在 $r(R$ 上成立，则$K$是$r(R)$的一个候选码
+- 主属性
+  - 包含在任何候选码中的属性，称为主属性
+  - 不包含在任何候选码中的属性的属性称为非主属性
+- 第二范式
+  - 关系模式$R$属于第二范式的条件是：如果$R$中的每个属性$A$都满足如下准则之一
+    - 它出现在一个候选码中
+    - 它没有部分依赖于一个候选码
+  - 也就是说每一个非主属性都完全函数依赖于$R$的候选码，不包含部分依赖候选码的非主属性
+- 第三范式（Third Normal Form）
+  - 具有函数依赖集$F$的关系模式$R$属于第三范式的条件是：对$F^*$（从$F$推导出的所有函数依赖的集合）中所有形如$\alpha \rightarrow \beta$的函数依赖（其中，$\alpha \subseteq R$且$\beta \subseteq R$），下面**至少一项成立**
+    - $\alpha \rightarrow \beta$是平凡的函数依赖（即，$\beta \subseteq \alpha$）
+    - $\alpha$是模式$R$的一个超码
+    - $\beta - \alpha$ 中的每个属性$A$都包含于$R$的一个候选码中（传递依赖）
+  - 也就是$R$中的每个非主属性既不部分函数依赖于候选码也不传递函数依赖于候选码
+- Boyce-Codd范式（Boyce-Codd Normal Form, BCNF）
+  - 具有函数依赖集$F$的关系模式$R$属于BCNF的条件是：对$F^*$中所有形如$\alpha \rightarrow \beta$的函数依赖（其中，$\alpha \subseteq R$且$\beta \subseteq R$），下面**至少一项成立**
+    - $\alpha \rightarrow \beta$是平凡的函数依赖（即，$\beta \subseteq \alpha$）
+    - $\alpha$是模式$R$的一个超码
+  - **消除所有基于函数依赖能够发现的冗余**
+  - 分解不属于BCNF模式的一般规则  
+    设$R$为不属于BCNF的一个模式，则存在至少一个非平凡的函数依赖$\alpha \rightarrow \beta$，其中$\alpha$不是的$R$超码，可以用以下两个模式取代$R$
+    - $(\alpha \bigcup \beta)$
+    - $(R-(\beta - \alpha))$  
+    例如在模式 $inst\_dept(ID, name, salary, dept\_name, buidling, budget)$ 中，$\alpha=dept\_name$，$\beta=\{buiding, budget\}$，且$inst\_dept$被替代为：
+    - $(\alpha \bigcup \beta)=(dept\_name, buiding, budget)$
+    - $(R-(\beta - \alpha))=(ID,name,dept\_name,salary)$
+- 函数依赖集的闭包
+  - 逻辑蕴涵
+    - 给定关系模式$r(R)$，如果$r(R)$的每一个满足$F$的实例也满足$f$，则$R$上的函数依赖$f$被$r$上的函数依赖集$F$逻辑蕴涵
+  - 闭包
+    - 令$F$为一个函数依赖集。$F$的闭包是被$F$逻辑蕴涵的所有函数依赖的集合，记作$F^*$
+  - Armstrong公理
+    - 自反率：若$\alpha$为一属性集且$\beta \subseteq \alpha$，则$\alpha \rightarrow \beta$
+    - 增补率：若$\alpha \rightarrow \beta$成立且$\gamma$为一属性集，则$\gamma\alpha \rightarrow \gamma\beta$成立
+    - 传递率：若$\alpha \rightarrow \beta$和$\beta \rightarrow \gamma$成立，则$\alpha \rightarrow \gamma$
+  - 其他（由Armstrong导出）
+    - 合并率：若$\alpha \rightarrow \beta$和$\alpha \rightarrow \gamma$成立，则$\alpha \rightarrow \beta\gamma$成立
+    - 分解率：若$\alpha \rightarrow \beta\gamma$成立，则$\alpha \rightarrow \beta$和$\alpha \rightarrow \gamma$成立
+    - 伪传递率：若$\alpha \rightarrow \beta$和$\gamma\beta \rightarrow \delta$成立，则$\alpha\gamma \rightarrow \delta$成立
+- 数据集的闭包
+  - 如果$\alpha \rightarrow B$，称属性$B$被$\alpha$函数确定
+  - 令$\alpha$为一个属性集，将函数依赖集$F$下被$\alpha$函数确定的所有属性的集合称为$F$下$\alpha$的闭包记为$\alpha{^*}$
+  - 计算$F$下$\alpha$的闭包$\alpha{^*}$的算法
+    ```
+    result := alpha
+      repeat
+        for each 函数依赖 beta -> gamma in F do
+          begin
+            if beta 包含于 result then result := result 并 gamma;
+          end
+      unitl(reuslt不变)
+    ```
+- 无损分解
+  - 令$r(R)$为一个关系模式，$F$为$r(R)$上的函数依赖集。令$R_1$和$R_2$为R的分解。如果用两个关系模式$r_1(R_1)$和$r_2(R_2)$替代$r(R)$时没有信息损失，则该分解是无损分解
+  - 如果以下函数依赖中至少有一个属于$F^*$，则$R_1$和$R_2$为$R$的无损分解：
+    - $R_1 \bigcap R_2 \rightarrow R_1$
+    - $R_1 \bigcap R_2 \rightarrow R_2$
+  - 也就是，如果$R_1 \bigcap R_2$是$R_1$或$R_2$的超码（或，满足一个即可），$R$的分解就是无损的
+- 保持依赖
+
+## 索引与散列
+
+- 
