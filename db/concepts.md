@@ -584,4 +584,72 @@
 
 ## 索引与散列
 
-- 
+- 索引
+  - 一种有助于无须检查所有记录而快速定位所需关系记录的结构
+- 顺序索引：基于值的顺序排序
+- 散列索引：基于将值平均分布到若干桶
+- B+树  
+  <img src="imgs/b+tree.png" width="50%">
+  - 一棵n阶的B树，或为空树，或为满足下列特性的n叉数
+    - 从根到叶结点的每条路径的长度相同
+    - 树中每个非叶结点有$\lceil n/2 \rceil - n$个子树（指针）
+    - 叶结点可以包含$\lceil (n-1)/2 \rceil - (n-1)$值
+    - 如果根结点不是叶结点，至少有2棵子树
+    - 所有的叶子结点中包含了全部关键字的信息，及指向哈耨这些关键字记录的指针，且叶子结点本身依赖的关键字的大小自小而大顺序链接
+    - 所有的非终端结点可以看成是索引部分，结点中仅含有其子树中的最大（或最小）关键字。
+  - 查询
+    ```
+    def tree_search(k, root):
+      if root is a leaf:
+        return leaf;
+      elif k < k_0:
+        return tree_search(k, p_0);
+      ...
+      elif k_i <= k <= k_{i+1}
+        return tree_search(k, p_{i+1});
+      ...
+      elif k_d <= k
+        return tree_search(k, p_{d+1});
+    ```
+  - 插入（分裂)
+    ```
+    def tree_insert(entry)
+      find target leaf L;
+      if L has less than n-2 entries:
+        add the entry;
+      else:
+        allocate new leaf L';
+        pick the n/2 highest keys of L and move then to L';
+        insert highest key of L and correspongding address leaf into the parent node;
+        if the parent if full:
+          split it and add the middle key to ites parent node;
+        repeat until a parent is found that is not full;
+    ```
+    <img src="imgs/b+tree-insert1.png" width="50%">
+    <img src="imgs/b+tree-insert2.png" width="50%">
+  - 删除（合并）
+    ```
+    def tree_delete(record):
+      locate target leaf and remve the entry;
+      if leaf is less than n/2:
+        try to re-distribute, taking from sibling (adjacent node with same parent);
+        if re-distribution fails:
+          marge leaf and sibling;
+          delete entry to one of the two merged leaves;
+          merage coud propagate to root;
+    ```
+    <img src="imgs/b+tree-delete.png" width="50%">
+- 桶
+  - 表示能存储一条或多条记录的一个存储单元
+  - 桶溢出：没有足够的存储空间。原因有：
+    - 桶不足
+    - 偏斜
+- 散列索引
+  - 将搜索码及其相应的指针组织成散列文件结构  
+  <img src="imgs/hash-index.png" width="40%">
+- 动态散列
+  - 允许散列函数动态改变，以适应数据库增大或缩小的需要
+- 可扩充散列
+  - 通过桶的分裂或合并来适应数据库的大小
+  - 重组每次仅作用于一个桶
+  - 给每个桶附加一个整数值，同来表明共同的散列前缀长度
