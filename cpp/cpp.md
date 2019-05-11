@@ -127,7 +127,7 @@
   - inline不是强制性，具体有编译器决定是否进行内联替换
   - inline表示程序中的函数可能有多个定义，但要求每个定义出现在不同的翻译单元中并且所有定义都相同。
   - 定义在class、struct、union的函数（包括friend函数）都是inline
-  - constexpr函数是inline函数、
+  - constexpr函数是inline函数
   - 通常放在头文件中
 - constexpr函数  
   - 函数的返回类型及所有的形参类型都必须是字面值类型，而且函数体中有且只有一条return语句。
@@ -282,7 +282,7 @@
   - 隐式捕获，在捕获列表中写一个&或=。  
   &告诉编译器采用引用捕获方式，=则表示采用值捕获方式
   - 可变lambda  
-  默认情况下，对于一个值拷贝的变量，lambda不会改变其值，在参数列表后加mutable可改变捕获变量的值  
+  默认情况下，对于一个值拷贝的变量，lambda不能改变其值，在参数列表后加mutable可改变捕获变量的值（本身的值不会改变）
   `auto f = [v1]() mutable { return ++v1; }`
   - 指定lambda返回类型  
   默认情况下，如果一个lambda体包含return之外的任何语句，则编译器假定此lambda返回void  
@@ -1131,3 +1131,70 @@
   - 成员函数也可以是volatile，只有volatile对象可以调用
   - volatile对象只能赋值给volatile的指针
   - 不能使用合成的拷贝/移动构造函数及赋值运算符初始化volatile对象或从volatile对象赋值（必须自己定义）
+
+## plus c++关键字
+
+- auto
+  - 自动存储周期说明符（c++11之前）
+    - 自动存储周期的对象在块开始前创建，在块结束时销毁，除了显示声明为static、extern外，所有的局部变量都是auto类型的。
+  - 自动类型说明符（c++11开始）
+    - 对于变量，指定将从其初始化程序自动推导出正在声明的变量的类型。
+    - 返回类型将从其返回语句中推断出来。
+    ```
+    auto a = 1 + 2;
+    template<class T, class U>
+    auto add(T t, U u) { return t + u; }
+    ```
+  - 带尾随返回类型的函数声明（c++11开始）
+    ```
+    // function returning a pointer to f0
+    auto fp11() -> void(*)(const std::string&) {
+      return f0;
+    }
+    ```
+- const
+  - 常量类型说明符
+    - 类型为const限定的对象，**或const对象的non-mutable成员**。无法被修改。尝试直接执行此操作是编译时错误，并尝试间接执行此操作（例如，通过引用或指向非const类型的指针修改const对象）会导致未定义的行为。
+    - 定义时指定初值
+    - （成员）函数返回const，表示函数不能当做“左值”
+  - 常量成员函数说明符
+    - 可以使用const限定符声明非静态成员函数（此限定符出现在函数声明中的参数列表之后）。表示this指针是指向const对象，与不加const可以相互重载。
+    - const成员函数不会修改non-mutable数据成员
+- explicit
+  - 表明转换构造函数和类型转换函数必须显示
+- extern
+- inline
+  - inline函数说明符
+    - 调用点内联展开而非进行函数调用
+    - inline不是强制性，具体有编译器决定是否进行内联替换
+    - inline表示程序中的函数可能有多个定义，但要求每个定义出现在不同的翻译单元中并且所有定义都相同。
+    - 定义在class、struct、union的函数（包括friend函数）都是inline
+    - constexpr函数是inline函数
+    - 被删除的函数是inline函数
+  - inline命名空间说明符
+    - 内联命名空间中的名字可以被外层命名空间直接使用
+    - `inline`必须出现在第一次定义的地方
+- mutable
+  - 类型说明符（类的数据成员）
+    - 表示该数据成员可以修改，即使的const对象的成员
+  - 作用lambda表达式
+    - 表示lambda函数体可以改变一个值传递的变量的值，也可以调用该变量的non-const成员函数
+      ```
+      class Data {
+       public:
+        Data(): data_(0) {}
+        Data(int val): data_(val) {}
+        int get_value() { return data_; }
+        int data_;
+      };
+      int main() {
+        Data d(10);
+        //auto g = [d]() -> int { ++d.data_; return d.get_value(); }; // 语法错误
+        auto f = [d]() mutable -> int { ++d.data_; return d.get_value(); };
+        cout << f() << " " << d.data_; // 11 10
+        system("pause");
+        return 0;
+      }
+      ```
+- static
+- volatile
