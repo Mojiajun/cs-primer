@@ -590,7 +590,7 @@
 - 散列索引：基于将值平均分布到若干桶
 - B+树  
   <img src="imgs/b+tree.png" width="50%">
-  - 一棵n阶的B树，或为空树，或为满足下列特性的n叉数
+  - 一棵n阶的B树，或为空树，或为满足下列特性的n叉数  
     - 从根到叶结点的每条路径的长度相同
     - 树中每个非叶结点有$\lceil n/2 \rceil - n$个子树（指针）
     - 叶结点可以包含$\lceil (n-1)/2 \rceil - (n-1)$值
@@ -625,8 +625,8 @@
           split it and add the middle key to ites parent node;
         repeat until a parent is found that is not full;
     ```
-    <img src="imgs/b+tree-insert1.png" width="50%">
-    <img src="imgs/b+tree-insert2.png" width="50%">
+    <img src="imgs/b+tree-insert1.png" width="100%">
+    <img src="imgs/b+tree-insert2.png" width="100%">
   - 删除（合并）
     ```
     def tree_delete(record):
@@ -638,7 +638,7 @@
           delete entry to one of the two merged leaves;
           merage coud propagate to root;
     ```
-    <img src="imgs/b+tree-delete.png" width="50%">
+    <img src="imgs/b+tree-delete.png" width="100%">
 - 桶
   - 表示能存储一条或多条记录的一个存储单元
   - 桶溢出：没有足够的存储空间。原因有：
@@ -646,7 +646,7 @@
     - 偏斜
 - 散列索引
   - 将搜索码及其相应的指针组织成散列文件结构  
-  <img src="imgs/hash-index.png" width="40%">
+  <img src="imgs/hash-index.png" width="100%">
 - 动态散列
   - 允许散列函数动态改变，以适应数据库增大或缩小的需要
 - 可扩充散列
