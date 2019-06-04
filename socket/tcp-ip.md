@@ -460,4 +460,104 @@ ssize_t recv(int sockfd, void *buf, size_t nbytes, int flags);
   |MSG_WAITALL|防止函数返回，知道接收全部请求的字节数||.|
 
 - `MSG_OOB`：发送紧急消息
-  - 
+  - 督促数据接受对象尽快处理数据
+  - TCP“保持传输顺序”的传输特性依然成立
+- `MSG_PEEK`和`MSG_DONTWAIT`：检查输入缓冲中是否存在接收的数据
+  - 设置`MSG_PEEK`选项并调用`recv`函数时，即使读取了输入缓冲的数据也不会删除。
+  - 常与`MSG_DONTWAIT`合作，用于调用以非阻塞方式验证待读数据存在与否
+### `readv` & `writev`函数
+- 对数据进行整合传输及发送的函数
+- 通过`writev`函数可以将分散保存在多个缓冲中的数据一并发送
+- 通过`readv`可以由多个缓冲分别接受
+```
+#include <sys/uio.h>
+/* @param
+ * filedes：表示数据传输对象的套接字文件描述符，但不仅限于套接字，也可以是文件或标准输出描述符
+ * iov：iovec结构体数组的地址
+ * iovcnt：向第二个参数传递的数组长度
+ * return：成功时返回发送的字节数，失败时返回-1
+ */
+ssize_t writev(int filedes, const struct iovec *iov, int iovcnt);
+
+struct iovec {
+  void *iov_base; // 缓冲地址
+  void *iov_len;  // 缓冲大小
+};
+
+/***比如****************************
+ * writev(1, ptr, 2);
+ *         --------
+ * ptr--->|iov_base|--->|A|B|C|.|.|
+ *        |iov_len |--->|3|
+ *         --------
+ *        |iov_base|--->|1|2|3|4|.|
+ *        |iov_len |--->|4|
+ *         --------
+ **********************************/
+
+ /* @param
+  * filedes：接收数据的文件（或套接字）描述符
+  * iov：iovec结构体数组的地址
+  * iovcnt：数组长度
+  * return：成功时返回接收的字节数，失败时返回-1
+  */
+ssize_t readv(int filedes, const struct iovec *iov, int iovcnt);
+```
+
+## 13、多播与广播
+### 多播 --- 数据传输基于UDP完成
+- 多播数据传输特点
+  - 多播服务端针对特定多播组，只发送一次数据
+  - 即使只发送一次数据，但改组内的所有客户端都会接受数据
+  - 多播组数可以在IP地址范围内任意增加
+  - 加入特定组即可接受发往该多播组的数据
+- 多播组是D类IP地址（224.0.0.0～239.255.255.255），向网络传递1个数据包时，路由器将复制该数据包并传递到多个主机
+### TTL（Time to Live）
+- 决定“数据包传递距离”的主要因素。
+- TTL用整数表示，每经过一个路由器就减1
+- TTL变为0时，该数据包无法再被传递，只能销毁
+- 通过套接字可选项`IP_MULTICAST_TTL`可以改变TTL的值
+  ```
+  int send_sock;
+  int time_to_live = 64;
+  ...
+  send_sock = socket(PF_INET, SOCK_DGRAM, 0);
+  setsockopt(send_sock, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&time_to_live, sizeof(time_to_live));
+  ...
+  ```
+- 加入多播组也是通过设置套接字选项`IP_ADD_MEMBERSHIP`完成
+  ```
+  int recv_sock;
+  struct ip_mreq join_addr;
+  ...
+  recv_sock = socket(PF_INET, SOCK_DGRAM, 0);
+  ...
+  join_addr.imr_multiaddr.s_addr = "inet_addr("224.0.0.14")";
+  join_addr.imr_interface.s_addr = htonl(INADDR_ANY);
+  setsockopt(recv_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void*)&join_addr, sizeof(join_addr));
+  ...
+
+  struct ip_mreq {
+    struct in_addr imr_multiaddr; // 加入的组IP地址
+    struct in_addr imr_interface; // 加入该组的套接字所属主机的IP地址
+  };
+  ```
+### 广播
+- 基于UDP完成
+- 只能向同一网络中的主机传输数据
+- 类别（主要差别是IP地址）
+  - 直接广播
+    - IP地址除了网络地址外，其余主机地址全部为1
+  - 本地广播
+    - IP地址限定为`255.255.255.255`
+- 通过更改套接字可选项`SO_BROADCAST`实现广播（默认生成的套接字会阻止广播）
+  ```
+  int send_sock;
+  int bcast = 1;
+  ...
+  send_sock = socket(PF_INET, SOCK_DGRAM, 0);
+  ...
+  setsockopt(send_sock, SOL_SOCKET, SO_BORADCASE, (void*)&bcast, sizeof(bcast));
+  ...
+  ```
+## 14、套接字和标准IO
