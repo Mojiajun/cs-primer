@@ -1,3 +1,7 @@
+/**
+ * TCP半关闭shutdown
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +20,7 @@ int main(int argc, char **argv) {
   FILE *fp;
   if(argc != 3) {
     printf("usage: %s <ip> <port>\n", argv[0]);
-	exit(1);
+	  exit(1);
   }
   if((fp = fopen("receive.dat", "wb")) == NULL)
     error_handler("cannot open the file");
