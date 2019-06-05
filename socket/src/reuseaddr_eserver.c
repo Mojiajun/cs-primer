@@ -1,3 +1,8 @@
+/*
+ * setsockopt函数的调用方法
+ * 地址再分配SO_REUSEADDR
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
