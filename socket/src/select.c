@@ -1,3 +1,7 @@
+/*
+ * IO复用 select函数
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
