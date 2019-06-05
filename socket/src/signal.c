@@ -1,3 +1,8 @@
+/*
+ * 信号处理相关示例
+ * 注册信号后，发生注册信号时，操作系统调用该信号对应的函数
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
