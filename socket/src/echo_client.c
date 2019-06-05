@@ -5,12 +5,12 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-#define BUF_SIZE 12
+#define BUF_SIZE 30
 void error_handler(char *msg);
 
 int main(int argc, char **argv) {
   int sockfd;
-  char msg[BUF_SIZE*3];
+  char msg[BUF_SIZE];
   int msg_len, recv_len;
   struct sockaddr_in serv_addr;
   if(argc != 3) {
@@ -25,6 +25,36 @@ int main(int argc, char **argv) {
   serv_addr.sin_port = htons(atoi(argv[2]));
   if(connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
     error_handler("connect error");
+  while(1) {
+	puts("input message(q to quit):");
+	msg_len = 0;
+	do{
+	  recv_len = read(0, msg, BUF_SIZE);
+	  if(recv_len != BUF_SIZE) {
+		msg[recv_len] = 0;
+		if(!strcmp(msg, "q\n") || !strcmp(msg, "Q\n")) {
+		  close(sockfd);
+		  return 0;
+		}
+		msg_len += recv_len;
+		write(sockfd, msg, recv_len);
+		break;
+	  }
+	  msg_len += recv_len;
+	  write(sockfd, msg, recv_len);
+	} while(1);
+	puts("message from server:");
+	recv_len = 0;
+	while(recv_len < msg_len) {
+	  int recv_cnt = read(sockfd, msg, BUF_SIZE-1);
+	  if(recv_cnt == -1)
+		error_handler("read error");
+	  msg[recv_cnt] = 0;
+	  recv_len += recv_cnt;
+	  fputs(msg, stdout);
+	}
+  }
+  /*
   fputs("Input message:\n", stdout);
   fgets(msg, sizeof(msg), stdin);
   msg_len = write(sockfd, msg, strlen(msg));
@@ -39,6 +69,7 @@ int main(int argc, char **argv) {
 	recv_len += recv_cnt;
 	fputs(msg, stdout);
   }
+  */
   printf("\n");
   close(sockfd);
   return 0;
