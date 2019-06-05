@@ -1,3 +1,9 @@
+/**
+ * 验证TCP传输的数据不存在边界
+ * write函数的调用次数不同于read函数的调用次数
+ * server中一次write发送数据
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
