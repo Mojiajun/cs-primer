@@ -242,8 +242,9 @@ struct hostent *gethostbyaddr(const char *addr, socklen_t len, int family);
 ```
 
 ## 8、套接字的多种可选项
-### 套接字多种可选项
-`sock_type.c`
+### 套接字多种可选项 `sock_type.c`
+<img src='./imgs/socket-option.jpg'>
+
 ```
 #include <sys/socket.h>
 /*@ param
@@ -680,3 +681,183 @@ int dup(int fildes);               // 成功时返回复制的文件描述符，
 int dup2(int fildes, int fildes2); // fildes2是明确指定目的文件描述符的值。成功时返回复制的文件描述符，失败时返回-1
 ```
 ### 无论负责出多少文件描述符，均应调用`shutdown`函数发送`EOF`并进入半关闭状态
+
+## 16、优于`select`的`epoll`
+### 基于`select`的IO复用技术速度慢的原因
+- 调用`select`函数后常见的针对所有文件描述符的循环语句
+  - 调用`select`函数后，并不是把发生变化的文件描述符单独集中到一起，而是通过棺材作为监视对象的`fd_set`变量的变化，找出发生变化的文件描述符，因此无法避免针对所有监视所有监视对象的循环语句
+- 每次调用`select`函数时都要向该函数传递监视对象信息
+  - 作为监视对象的`fd_set`变量会发生变化，所以调用`select`函数前应复制并保存原有信息，并在每次调用`select`函数时传递新的监视对象信息
+### 实现`epoll`时必要的函数和结构体
+```
+#include <sys/epoll.h>
+typedef union epoll_data {
+  void       *ptr;
+  int        fd;
+  __uint32_t u32;
+  __uint64_t u64
+} epoll_data_t;
+struct epoll_even {
+  __uint32_t events;
+  epoll_data data;
+};
+
+/* @param
+ * size：epoll实例的大小，只是建议值，仅供操作系统参看
+ * return：成功时返回epoll文件描述符（调用close关闭），失败时返回-1*/
+int epoll_create(int size);
+
+/* @param
+ * epfd：用于注册监视对象的epoll例程的文件描述符
+ * op：用于指定监视对象的添加、删除或更改操作
+ *     EPOLL_CTL_ADD：将文件描述服注册到epoll例程
+ *     EPOLL_CTL_DEL：从epoll例程中删除文件描述符
+ *     EPOLL_CTL_MOD：更改注册的文件描述符的关注事件发生情况
+ * fd：需要注册的监视对象文件描述符
+ * event：监视对象的事件类型
+ *     EPOLLIN：需要读取数据的情况
+ *     EPOLLOUT：输出缓冲为空，可以立即发送数据的情况
+ *     EPOLLPRI：收到OOB数据的情况
+ *     EPOLLRDHUP：断开连接或半关闭的情况，在边缘触发方式下非常有用
+ *     EPOLLERR：发生错误的情况
+ *     EPOLLET：以边缘触发的方式得到事件通知
+ *     EPOLLONESHOT：发生一次事件后，相应文件描述符不再收到事件通知。
+ *                   因此需要向epoll_ctl函数的第二个参数传递EPOLL_CTL_MOD，再次设置事件
+ * return：成功时返回0，失败返回-1
+ */
+int epoll_ctl(int epfd, int op, int fd, struct epoll *event);
+
+/* @param
+ * epfd：表示事件发生监视范围的epoll例程的文件描述符
+ * events：保存发生事件的文件描述符集合的结构体地址
+ * maxevents：第二个参数中可以保存的最大事件数
+ * timeout：以1/1000秒为单位的等待时间，传递-1时，一直等待直到发生事件
+ * return：成功返回发生事件的文件描述符，失败返回-1
+ */
+int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timout);
+```
+### 条件触发（Level Trigger）和边缘触发（Edge Trigger）
+#### 条件触发和边缘触发的区别在于发生事件的时间点
+- 条件触发方式中，只要输入缓冲有数据就会一直通知该事件
+- 边缘触发中输入缓冲收到数据时仅注册1次该事件。即使输入缓冲中还留有数据，也不会再进行注册
+- `epoll`默认以条件触发方式工作
+#### 边缘触发的服务器端实现中必知的两点
+- 通过`errno`变量验证错误原因
+  - `read`函数返回-1，`errno`的值为`EAGAIN`时，说明没有数据可读
+- 为了完成非阻塞（Non-blocking）IO，更改套接字特性
+  ```
+  // linux提供更改或读取文件属性的方法
+  #include <fcntl.h>
+  /* @param
+   * filedes：属性更改目标的文件描述符
+   * cmd：表示函数调用的目的
+   *    F_GETFL：获得第一个参数所指文件描述符属性（int型）
+   *    F_SETFL：更改文件描述符属性
+   * return：成功返回cmd参数相关值，失败返回-1
+   */
+  int fcntl(int filedes, int cmd, ...);
+
+  // 将文件（套接字）改为非阻塞模式
+  int flag = fcntl(sockfd, F_GETFL, 0);
+  fcntl(sockfd, F_SETFL, flag|O_NONBLOCK)
+  ```
+
+## 17、多线程服务器端的实现
+### 线程和进程的差异
+<img src='./imgs/process-thread.png'>
+
+- 每个进程拥有独立的内存
+  - 在操作系统构成单独执行流的单位
+- 同一进程的线程共享数据、堆区域，只需分离栈区域
+  - 上下文切换时不需要切换数据区和堆
+  - 可以利用数据区和堆交换数据
+  - 在进程构成单独执行流的单位
+### 线程创建及运行
+线程具有单独的执行流，需要单独定义线程的`main`函数，还需要请求操作系统在单独的执行流中执行该函数
+```
+#include <pthread.h>
+/* @param
+ * thread：保存新创建线程ID
+ * attr：传递线程属性的参数，传读NULL，创建默认属性的线程
+ * start_routine：相当于线程main函数的、在单独执行流中执行的函数指针
+ * arg：通过第三个参数传递调用函数时包含传递参数的变量地址
+ * return：成功返回0，失败返回其他值
+ */
+int pthread_create(
+  pthread_t *restrict thread, const pthread_arrt_t *restrict attr,
+  void *(*start_routine)(void *), void *restrict arg);
+// 用restrict修饰一个指针，表示指针独享这片内存，所有修改都得通过这个指针进行
+
+/* @param
+ * thread：此ID的线程终止后才会从该函数返回
+ * status：保存线程返回值
+ * return：成功返回0，失败返回其他值
+ */
+int pthread_join(pthread_t thread, void **status);
+```
+### 线程安全函数
+- 多个线程同时调用时也不会发生问题
+- 大多数标准函数都是线程安全函数
+- 非线程安全函数对应的线程安全函数加`_r`后缀
+  ```
+  struct hostent *gethostbyname(const char *hostname);
+  struct hotent *gethostbyname_r(const char *name, struct hostent *result, char *buffer, int buflen, int *h_errnop);
+  ```
+### 工作（Worker）线程模型 `thread4.c`
+<img src='./imgs/thread-worker.png'>
+
+### 线程存在的问题和临界区
+- 多个线程访问同一变量的问题
+  - 并发执行引发逻辑错误
+- 临界区位置
+  - 函数内同时运行多个线程时引起问题的多条语句构成的代码块
+### 线程同步
+- 互斥量
+  ```
+  #include <pthread.h>
+  /* @param
+   * mutex：保存互斥量的变量地址值
+   * attr：传递即将创建的互斥量属性，没有特别需要的属性传递NULL
+   *    第二个参数为NULL，等同于宏 PTHREAD_MUTEX_INITIALIZER
+   * return：成功返回0，失败返回其他值
+   */
+  int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
+  
+  /* @param
+   * mutex：销毁互斥量的变量地址值
+   * return：成功返回0，失败返回其他值
+   */
+  int pthead_mutex_destroy(pthread_mutex_t *mutex);
+
+  int pthread_mutex_lock(pthread_mutex_t *mutex);  // 成功返回0，失败返回其他值
+  int pthread_mutex_unlock(pthread_mutex_t *mutex); // 成功返回0，失败返回其他值
+  ```
+- 信号量
+  ```
+  #include <semaphore.h>
+  /* @param
+   * sem：创建信号量的变量地址值
+   * pshared：创建可由多少个进程共享的信号量，传递0表示只允许1个进程内部使用
+   * value：指定初始值
+   * return：成功返回0，失败返回其他值
+   */
+  int sem_init(sem_t *sem, int pshared, unsigned int value);
+  
+  /* @param
+   * sem：销毁信号量的变量地址值
+   * return：成功返回0，失败返回其他值
+   */
+  int sem_destroy(sem_t *sem);
+
+  int sem_post(sem_t *sem);  // +1 成功返回0，失败返回其他值
+  int sem_wait(sem_t *sem);  // -1 成功返回0，失败返回其他值
+  ```
+### 销毁线程的2种方法
+- 调用`pthread_join`函数
+  - 调用者阻塞
+- 调用`pthread_detach`函数
+  ```
+  #include <pthread.h>
+  int pthread_detach(pthread_t thread); // 成功返回0，失败返回其他值
+  ```
+  - 不会阻塞
