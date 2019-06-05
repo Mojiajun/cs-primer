@@ -1,3 +1,7 @@
+/*
+ * 多线程并发服务器端的实现
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
