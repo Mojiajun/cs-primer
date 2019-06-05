@@ -1,3 +1,7 @@
+/*
+ * 分散保存在多个缓冲中的数据一并发送，可以减少IO函数调用次数
+ */
+
 #include <stdio.h>
 #include <sys/uio.h>
 

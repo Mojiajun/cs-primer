@@ -1,3 +1,7 @@
+/*
+ * 由多个缓冲分别接收，可以减少IO函数调用次数
+ */
+
 #include <stdio.h>
 #include <sys/uio.h>
 
