@@ -1,3 +1,7 @@
+/*
+ * 基于套接字的标准IO函数使用
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
