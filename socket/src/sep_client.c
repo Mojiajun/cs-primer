@@ -1,3 +1,7 @@
+/*
+ * IO流分离以及半关闭
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
