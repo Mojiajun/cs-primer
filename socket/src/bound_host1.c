@@ -1,3 +1,9 @@
+/**
+ * 存在数据边界的UDP套接字
+ * 传输中调用IO函数的次数非常重要，输入函数和输出函数的调用次数完全一致
+ * host1用于接收数据
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
