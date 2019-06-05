@@ -1,3 +1,7 @@
+/*
+ * 文件描述符复制
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 
