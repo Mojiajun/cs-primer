@@ -1,3 +1,8 @@
+/**
+ * htons htonl 调用
+ * 小（da）端序 ==> 网络字节序
+ */
+
 #include <stdio.h>
 #include <arpa/inet.h>
 
