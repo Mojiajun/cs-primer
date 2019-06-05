@@ -1,3 +1,7 @@
+/*
+ * TCP IO复用epoll
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
