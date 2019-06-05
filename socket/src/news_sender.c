@@ -1,3 +1,8 @@
+/*
+ * 实现多播Sender和Receiver
+ * Sender：向×××组多播播文件中保存的新闻信息
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
