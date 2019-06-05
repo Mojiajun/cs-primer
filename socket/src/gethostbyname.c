@@ -1,3 +1,7 @@
+/*
+ * 利用域名获取IP地址
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

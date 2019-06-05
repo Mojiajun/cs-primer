@@ -1,3 +1,7 @@
+/*
+ * 利用IP地址获取域名相关信息
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
