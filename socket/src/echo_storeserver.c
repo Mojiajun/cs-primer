@@ -1,3 +1,8 @@
+/*
+ * 保存消息的回声服务端
+ * 将保存消息委托给另外的进程，利用pipe通信
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
