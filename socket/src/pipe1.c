@@ -1,3 +1,8 @@
+/*
+ * 进程间通信
+ * PIPE管道
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #define BUF_SIZE 30
