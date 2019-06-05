@@ -1,3 +1,7 @@
+/*
+ * 线程创建
+ */
+
 #include <stdio.h>
 #include <pthread.h>
 

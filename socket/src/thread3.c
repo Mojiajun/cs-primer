@@ -1,3 +1,8 @@
+/*
+ * 线程创建
+ * 临界区
+ */
+
 #include <stdio.h>
 #include <pthread.h>
 

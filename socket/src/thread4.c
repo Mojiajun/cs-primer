@@ -1,3 +1,8 @@
+/*
+ * 线程创建
+ * 临界区出错
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
