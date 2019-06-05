@@ -1,3 +1,7 @@
+/*
+ * epoll 边缘触发（Level Trigger）
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

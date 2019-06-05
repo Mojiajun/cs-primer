@@ -1,3 +1,7 @@
+/*
+ * epoll 条件触发（Level Trigger）
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
