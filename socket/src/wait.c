@@ -1,3 +1,7 @@
+/*
+ * 销毁僵尸进程 wait
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
