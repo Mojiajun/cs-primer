@@ -1,3 +1,8 @@
+/*
+ * getsockopt函数的调用方法
+ * 查看SO_TYPE
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
