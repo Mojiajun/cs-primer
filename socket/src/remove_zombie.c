@@ -1,3 +1,8 @@
+/*
+ * 利用信号处理技术消灭僵尸进程
+ * 子进程终止时将产生SIGCHLD信号
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
