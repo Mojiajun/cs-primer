@@ -1,3 +1,7 @@
+/**
+ * 点分十进制格式 ==> 32位整型
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
@@ -13,5 +17,4 @@ int main(int argc, char **argv) {
   else
     printf("ip: %15s\tnetwork order integet addr: %#lx\n", argv[1], conv_addr);
   return 0;
-
 }

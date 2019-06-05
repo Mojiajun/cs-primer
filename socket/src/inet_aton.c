@@ -1,3 +1,7 @@
+/**
+ * 点分十进制格式 ==> in_addr
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
