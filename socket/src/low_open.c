@@ -1,3 +1,8 @@
+/**
+ * open函数调用例子
+ * 创建新文件并保存数据
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>

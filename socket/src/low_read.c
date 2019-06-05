@@ -1,3 +1,8 @@
+/**
+ * read函数调用例子
+ * 读取data.txt保存的数据
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
