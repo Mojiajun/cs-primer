@@ -1,3 +1,7 @@
+/*
+ * 信号量量进程同步
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>

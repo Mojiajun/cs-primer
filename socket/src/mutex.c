@@ -1,3 +1,7 @@
+/*
+ * 互斥量进程同步
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
