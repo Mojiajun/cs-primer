@@ -1,3 +1,7 @@
+/**
+ * 服务端收到连接请求后向请求者返回“Hello World”答复
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +16,10 @@ int main(int argc, char **argv) {
   struct sockaddr_in serv_addr, clnt_addr;
   socklen_t clnt_addr_len;
   char msg[] = "hello world!";
-  if(argc != 2)
-    error_handler("usage error!");
+  if(argc != 2) {
+    printf("usage: %s <port>\n", argv[0]);
+    exit(1);
+  }
   serv_sockfd = socket(PF_INET, SOCK_STREAM, 0);
   if(serv_sockfd == -1)
     error_handler("socket() error");

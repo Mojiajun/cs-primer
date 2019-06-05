@@ -1,3 +1,8 @@
+/**
+ * 调用socket函数和connect函数
+ * 与服务端共同运行接受字符串数据
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +20,7 @@ int main(int argc, char **argv) {
 
   if(argc != 3) {
     printf("usage: %s <IP> <port>\n", argv[0]);
-	exit(0);
+	  exit(0);
   }
   
   sockfd = socket(PF_INET, SOCK_STREAM, 0);
