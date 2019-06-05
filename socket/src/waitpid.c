@@ -1,3 +1,8 @@
+/*
+ * 销毁僵尸进程 waitpid
+ * 不会阻塞
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/wait.h>
