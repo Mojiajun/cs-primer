@@ -1,3 +1,7 @@
+/*
+ * MSG_OOB：发生紧急消息
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
