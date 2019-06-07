@@ -139,7 +139,7 @@ const char *inet_ntop(int family, const void *addrptr, const *strptr, size_t len
 ```
 <img src='./imgs/address-convert.png'>
 
-## 基本TCP套接字编程
+## 4、基本TCP套接字编程
 <img src='./imgs/socket-related-function.png'>
 
 ### `socket`函数
@@ -243,5 +243,70 @@ int getsockname(int sockfd, struct sockaddr *localaddr, socklen_t *addrlen);
 int getpeername(int sockfd, struct sockaddr *peeraddr, socklen_t *addrlen);
 ```
 
-## TCP客户/服务器程序示例
+## 5、TCP客户/服务器程序示例
 ### POSIX信号处理
+- 信号就是告知某个进程发生了某个事件的通知，有时也称为软件中断。信号通常是异步发生的
+  - 由一个进程发送给另一个进程（或自身）
+  - 由内核发送给某个进程
+- 信号处理选择
+  - 提供一个函数，只要有特定信号发生它就被调用
+  - 把某个信号的设置为`SIG_IGN`来忽略它。`SIGKILL`和`SIGSTOP`不能忽略
+  - 默认处置`SIG_DFL`
+- 注册函数
+  ```
+  #include <signal.h>
+  void (*signal(int signo, void(*func)(int)))(int);
+
+  struct sigaction {
+    void (*sa_handler)(int);
+    sigset_t sa_mask;
+    int      sa_flags;
+  };
+  int sigaction(int signo, const struct sigaction *act, struct sigaction *oldact);
+  ```
+
+### POSIX信号语义
+- 一旦注册了信号处理函数，它变一直注册
+- 在一个信号处理函数运行期间，正被递交的信号是阻塞的
+- 如果一个吸纳好哦在被簇赛期间产生类一次或多次，那么该信号被解阻塞之后只递交一次，也就是Unix信号默认是不排队的
+
+### 处理僵尸进程
+`signal(SIG_CHLD, sig_child);`
+
+### `wait`和`waitpid`函数
+```
+#include <sys/wait.h>
+pid_t wait(int *statloc);
+pid_t waitpid(pid_t pid, int *statloc, int options);
+```
+- 两者区别：
+  - 如果调用`wait`的进程没有已终止的进程，不过有一个或多个子进程仍在执行，那么`wait`将阻塞到现有子进程第一个终止为止
+  - `waitpid`就等待哪个进程以及是否阻塞给了我们更多的控制。pid参数运行我们指定像等待的进程ID（-1表示等待第一个终止的进程）;传递`WNOHNAG`给options可以告知内核在没有已终止子进程时不要阻塞
+
+### `SIGPIPE`信号
+当一个进程向某个已收到`RST`的套接字执行写操作时，内核向该进程发送一个`SIGPIPE`信号。该信号的默认行为是终止进程，因此进程必须捕获它以免不情愿地被终止。
+
+### `accept`返回前连接中止
+三路握手完成从而连接建立之后，客户TCP却发送了一个`RST`。在服务器端看来，就在该连接已由TCP排队，等着服务进程调用`accept`的时候`RST`到达。稍后，服务进程调用`accept`。
+
+如何处理这种中止的连接依赖于不同的实现：
+- POSIX实现，返回`ECONNABORTED`错误（errno）
+- SVR4实现，返回`EPROTO`错误（errno）
+- 源自Berkeley的实现完全在内核中处理中止的连接，服务进程看不到。同时完成三次握手的连接会从已完成队列中移除。在这种情况下，如果我们用`select`监听到有新的连接完成，但之后又被从完成队列中删除，此时如果调用阻塞`accept`就会产生阻塞。解决办法：
+  - 使用`select`监听套接字是否有完成连接的时候，总是把这个监听套接字设置为非阻塞
+  - 在后续的`accept`调用中忽略以下错误，`EWOULDBLOCK`(Berkeley实现，客户中止连接), `ECONNABORTED`(posix实现，客户中止连接), `EPROTO`(serv4实现，客户中止连接)和EINTR(如果有信号被捕获)；
+
+### 服务器进程终止（崩溃）
+在客户端和服务器端建立连接之后，使用kill命令杀死服务器进程，进程终止会关闭所有打开的描述符，这导致了其向客户端发送一个`FIN`，而客户端不知道服务器端已经终止了，当客户端向服务器写数据的时候，由于服务器进程终止，所以响应了`RST`，如果我们使用`select`等方式，能够立即知道当前连接状态；如下：
+- 如果对端TCP发送数据，那么套接字可读，并且`read`返回一个大于0的值
+- 如果对端TCP发送了`FIN`（对端终止），那么套接字变为可读，并且`read`返回0（`EOF`）
+- 如果对端TCP发送`RST`（对端主机崩溃并重启），那么套接字变为可读，并且`read`返回-1，errno中含有确切错误码
+
+### 服务器主机崩溃
+建立连接后，服务器主机崩溃，此时如果客户端发送数据，会发现客户端会在一定时间内持续重传，视图从服务器端收到数据的`ACK`，当重传时间超过指定时间后，服务器仍然没有响应，那么返回`ETIMEDOUT`错误。
+
+### 服务器主机崩溃后重启
+当服务器主机崩溃后重启时，它的TCP丢失了崩溃前的所有连接信息，因此服务器TCP对于收到来自客户端的数据分节响应一个`RST`。客户端套接字变为可读，并且`read`返回-1，errno中含有确切错误码
+
+### 服务器主机关机
+UNIX系统关机时，init进程给所有进程发送`SIGTERM`信号（默认处置是终止进程），等待一端固定的时间（5～20sec，清除和终止所有运行的进程），然后给所有仍在运行的进程发送`SIGKILL`信号（该信号不能被捕获）。当服务器子进程终止时，它的所有打开着的描述符都被关闭，随后发生的是和[服务器进程终止](###服务器进程终止（崩溃）)一样
