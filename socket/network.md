@@ -469,3 +469,27 @@ int fcntl(int fd, int cmd, ... /*int arg */);
 - `F_SETOWN`命令允许我们指定用于接收`SIGIO`和`SIGURG`信号的套接字属主（进程ID或进程组ID）。其中`SIGIO`信号是套接字被设置为信号驱动式IO型后产生的，`SIGURG`信号是在新的带外数据到达套接字产生的。`F_GETOWN`命令返回套接字的当前属主
 
 <img src='./imgs/fcntl-ioctl-function.png'>
+
+## 8、基本UDP套接字编程
+<img src='./imgs/udp-socket.png'>
+
+### `recvfrom`和`sendto`函数
+```
+#include <sys/socket.h>
+ssize_t recvfrom(int sockfd, void *buff, size_t nbytes, int flags, struct sockaddr *from, socklen_t *addrlen);
+
+ssize_t sendto(int sockfd, void *buf, size_t nbytes, int flags, const struct sockaddr *to, socklen_t *addrlen);
+```
+
+### UDP的`connect`函数
+没有三路握手，内核只是检查是否存在可知的错误，记录对端的IP地址和端口号（取自传递给`connect`的套接字地址结构），然后立即返回到调用进程。
+
+与默认的未连接UDP套接字相比，已连接UDP套接字（调用`connect`的结果）
+- 不能给输出操作指定目的IP地址和端口号，可以不使用（若使用，地址参数为NULL，地址长度为0）而改用`write`或`send`
+- 不必使用`recvfrom`以获悉数据报的发送者，而改用`read`、`recv`或`recvmsg`
+- 由已连接UDP套接字引发的异步错误会返回给它们所在的进程，而未连接UDP套接字不接受任何异步错误
+
+### 给一个UDP套接字多次调用`connect`
+拥有一个已连接UDP套接字的进程可出于下列两个目的之一再次调用`connect`
+- 指定新的IP地址和端口号
+- 断开套接字
