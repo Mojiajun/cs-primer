@@ -441,3 +441,31 @@ struct pollfd {
 };
 ```
 <img src='./imgs/poll-events-revents.png'>
+
+## 7、套接字选项
+
+### `getsockopt`和`setsockopt`函数
+```
+#include <sys/socket.h>
+int getsockopt(int socdfdm, int level, int optname, void *optval, socklet_t *optlen);
+
+int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
+```
+
+### `SO_KEEPALIVE`套接字选项
+给一个TCP套接字设置保持存活（keep-alive）选项后，如果2小时内在该套接字的任一方向上都没有数据交换，TCP就自动给对端发送一个保持存活探测分节（keep-alive probe）。这是一个对端必须响应的TCP分节，它会导致以下三种情况之一：
+- 对端以期望的`ACK`响应。应用进程得不到通知（因为一切正常）。在又经过仍无动静的2小时后，TCP将发出另一个探测分节
+- 对端以`RST`响应，它告知本端TCP：对端已崩溃且已重新启动。该套接字的待处理错误被设置为`ECONNRESET`，套接字本身则被关闭
+- 对端对保持存活探测没有任何响应。该套接字的待处理错误被设置为`ETIMEOUT`，套接字本身则被关闭。然而如果该套接字收到一个ICMP错误作为某个探测分节的响应，那就返回响应的错误，套接字本身也被关闭。
+
+### `fcntl`函数
+```
+#include <fcntl.h>
+int fcntl(int fd, int cmd, ... /*int arg */);
+```
+与代表“file control”的名字相符，`fcntl`函数可执行各种描述符控制操作
+- 非阻塞IO。通过使用`F_SETFL`命令设置`O_NONBLOCK`文件状态标志，可以把一个套接字设置为非阻塞型
+- 信号驱动式IO。通过使用`F_SETFL`命令设置`O_ASYNC`文件状态标志，可以把一个套接字设置成一旦其状态发生变化，内核就产生一个`SIGIO`信号
+- `F_SETOWN`命令允许我们指定用于接收`SIGIO`和`SIGURG`信号的套接字属主（进程ID或进程组ID）。其中`SIGIO`信号是套接字被设置为信号驱动式IO型后产生的，`SIGURG`信号是在新的带外数据到达套接字产生的。`F_GETOWN`命令返回套接字的当前属主
+
+<img src='./imgs/fcntl-ioctl-function.png'>
