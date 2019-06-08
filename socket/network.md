@@ -581,3 +581,54 @@ int getnameinfo(const struct sockaddr *sockaddr, socklen_t addrlen,
 #include <syslog.h>
 void syslog(int priority, const char *message, ...)
 ```
+
+## 14、高级IO函数
+
+### 套接字超时
+- 调用`alarm`，在指定超时器满时产生`SIGALRM`信号
+- 在`select`中阻塞等待IO，以此代替直接阻塞在`read`或`write`调用上
+- 使用较新的`SO_RCVTIMEO`和`SO_SNDTIMEO`套接字选项（但是并非所有实现支持这两个套接字选项）。
+
+### `recv`和`send`函数
+```
+#include <sys/socket.h>
+ssize_t recv(int sockfd, void *buff, size_t nbytes, int flags);
+ssize_t send(int sockfd, void *buff, size_t nbytes, int flags);
+```
+<img src='./imgs/recv-send-flags.png'>
+
+### `readv`和`write`函数
+```
+#include <sys/uio.h>
+ssize_t readv(int filedes, const struct iovec *iov, int iovcnt);
+ssize_t writev(int filedes, const struct iovec *iov, int iovcnt);
+
+struct iovec {
+  void *iov_base;  /* starting address of buffer */
+  size_t iov_len;  /* size of buffer */
+};
+```
+
+### `recvmsg`和`sendmsg`函数
+```
+#include <sys/socket.h>
+ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
+ssize_t sendmsg(int sockfd, struct msghdr *msg, int flags);
+
+struct msghdr {
+  void         *msg_name;
+  socklen_t     msg_namelen;
+  struct iovec *msg_iov;
+  int           msg_iovlen;
+  void         *msg_control;
+  socklen_t     msg_controllen;
+  int           msg_flags;
+};
+```
+
+### 排队的数据量
+不真正读取数据的前提下知道一个套接字上已有多少数据排队等着读取
+- 如果获悉已排队数据量的目的在于避免读取操作阻塞，可以使用非阻塞IO
+- 既想查看数据，又像数据仍然留在接收队列中供本进程其他部分稍后读取，可以使用`MSG_PEEK`标志
+- 一些实现支持`ioctl`的`FIONREAD`命令
+
