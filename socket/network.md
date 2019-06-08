@@ -692,3 +692,54 @@ int socketpair(int family, int type, int protocol, int sockfd[2]);
 
 ## 21、多播
 多播地址标识一组IP接口
+
+## 26、线程
+
+### 概述
+同一进程内的所有线程除了共享全局变量外还共享
+- 进程指令
+- 大多数数据
+- 打开的文件（即描述符）
+- 当前工作目录
+- 用户ID和组ID
+
+不过每个线程有各自的
+- 线程ID
+- 寄存器集合，包括程序计数器和栈指针
+- 栈（用于存放局部变量和返回地址）
+- errno
+- 信号掩码
+- 优先级
+
+### 基本线程函数：创建和终止
+```
+#include <pthread>
+// 进程创建
+int pthread_create(pthread *tid, const pthread_attr_t *attr, void *(*func)(void*), void *arg);
+
+// 等待一个给定线程终止
+int pthread_join(pthread_t *tid, void **status);
+
+// 返回线程自身的ID
+pthread_t pthread_self(void);
+
+// 不会阻塞，tid线程终止时，所有相关资源都被释放
+int pthread_detach(pthread_t tid);
+
+// 线程终止
+void pthread_exit(void **status);
+```
+
+### 互斥锁
+```
+#include <pthread.h>
+int pthread_mutex_lock(pthread_mutex_t *mptr);
+int pthread_mutex_unlock(pthread_mutex_t *mptr);
+```
+
+### 条件变量
+```
+#include <pthread.h>
+int pthread_cond_wait(pthread_cond_t *cptr, pthread_mutex_t *mptr);
+int pthread_cond_signal(pthread_cond_t *cptr);
+```
