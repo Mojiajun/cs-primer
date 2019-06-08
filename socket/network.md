@@ -632,3 +632,26 @@ struct msghdr {
 - 既想查看数据，又像数据仍然留在接收队列中供本进程其他部分稍后读取，可以使用`MSG_PEEK`标志
 - 一些实现支持`ioctl`的`FIONREAD`命令
 
+## 15、UNIX域协议
+在单个主机上执行客户/服务器通信的一种方法
+
+### UNIX域套接字地址结构
+```
+#include <sys/un.h>
+struct sockaddr_un {
+  __SOCKADDR_COMMON (sun_);
+  char sun_path[108];		/* Path name.  */
+};
+```
+### `socketpair`函数
+```
+#include <sys/socket.h>
+/* @param
+ * family：必须为AF_LOCAL
+ * type：SOCK_STREAM或SOCK_DGRAM
+ * protocol：必须为0
+ * sockfd：套接字描述符数组
+ * return：成功返回非0，失败返回-1
+ */
+int socketpair(int family, int type, int protocol, int sockfd[2]);
+```
