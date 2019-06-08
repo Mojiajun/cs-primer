@@ -680,3 +680,15 @@ int socketpair(int family, int type, int protocol, int sockfd[2]);
 解决办法如下：
 - 当使用`select`获悉某个监听套接字上何时有已完成连接准备好被`accept`时，总是把这个监听套接字设置为非阻塞。
 - 在后续的`accept`调用中忽略以下错误：`EWOULDBLOCK`（源自Kerkeley的实现，客户中止连接时）、`ECONNABORTED`（POSIX实现，客户中止连接时）、`EPROTO`（SVR4实现，客户中止连接时）和`EINTR`（如果有信号被捕获）
+
+## 20、广播
+广播地址标识某个子网的所有IP接口
+
+### 使用广播的应用
+- ARP（地址解析协议），是IPv4的基本组成部分之一，使用链路层广播，“IP地址为a.b.c.d的系统亮明身份，告诉我你的硬件地址”。
+- DHCP（动态主机配置协议）
+- NTP（网络时间协议）
+- 路由守护进程
+
+## 21、多播
+多播地址标识一组IP接口
