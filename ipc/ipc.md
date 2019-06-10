@@ -13,7 +13,13 @@ Posix IPC函数
 <img src='./imgs/posix-ipc-fcns.png'>
 
 ### 创建与打开IPC
-<img src='./imgs/create-posix-ipc.png'>
+- 打开`oflag`参数
+ 
+  <img src='./imgs/open-posix-oflag.png'>
+
+- 创建`mode`参数
+ 
+  <img src='./imgs/create-posix-mode.png'>
 
 ## System V IPC
 
@@ -35,10 +41,13 @@ key_t ftok(const char *pathname, int id); // 出错返回-1
 ```
 
 ### 创建与打开IPC
+<img src='./imgs/create-systemv-ipc.png'>
+
 - 调用`ftok`，给它传递pathname和id
 - 指定key为`IPC_PRIVATE`，这将保证会创建一个新的、唯一的IPC对象
 
-<img src='./imgs/create-systemv-ipc.png'>
+### IPC权限
+<img src='./imgs/open-systemv-oflag.png'>
 
 ## 4、管道和FIFO
 
@@ -105,3 +114,19 @@ int mkfifo(const char *pathname, mode_t mode);
 ### 管道和FIFO限制
 - `OPEN_MAX`：一个进程在任意时刻打开的最大描述符数（Pisix要求至少为16）
 - `PIPE_BUF`：可原子地网一个管道或FIFO的最大数据量（posix要求至少为512）
+
+## Posix消息队列
+
+### `mq_open`、`mq_close`和`mq_unlink`函数
+```
+#include <mqueue.h>
+/* @param
+ * name：消息队列名字
+ * oflag：打开模式，是O_RDONLY、O_WRONLY或O_RDWR之一，可能按位或上O_CREAT、O_EXCL或O_NONBLOCK
+ * mode：
+ * attr
+ * return 
+ */
+mqd_t mq_open(const char *name, int oflag, ...
+              /* mode_t mode, struct mq_attr *attr */);
+```
