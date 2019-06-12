@@ -236,6 +236,10 @@ struct sigevent {
   void           (*sigev_notify_function)(union sigval);
   pthread_attr_t  *sigev_notify_attributes
 };
+note: sigev_notify specifies how notification is to be performed.
+    SIGEV_NONE: don't do anything when the event occurs.
+    SIGEV_SIGNAL:Notify the process by sending the signal specified in sigev_signo.
+    SIGEV_THREAD: Notify the process by invoking sigev_notify_function "as if" it were the start function of a new thread.
 ```
 `mq_notify`函数说明
 - 如果`notification`参数为非空，那么当前进程希望有一个消息到达指定的先前为空的队列时得到通知
@@ -251,6 +255,60 @@ struct sigevent {
     - 在信号处理程序中调用`mq_notify`、`mq_receive`和`printf`函数，这些是非异步信号安全函数
 - 信号通知`mqnotifysig2.c`
   - 避免从信号处理程序调用任何函数的方法之一是：让处理程序仅仅设置一个全局标志，由某个线程检查该标志以确定何时接受到一个消息。
+  - 通过调用`sigsuspend`阻塞，以等待某个消息的到达。当有一个消息被放置到某个空队列中时，该信号产生，主线程被阻止，信号处理程序执行并设置`mqflag`变量，主线程再次执行，发现`mq_flag`为非零，于是读出该消息
   - 问题
     - 考虑一下第一个消息被读出之前有两个消息到达的情形（课题在调用`mq_notify`前调用`sleep`模拟）。这里的基本问题是，通知只是在一个消息没放置到某个空队列上时才发出。如果在能够读出第一个消息前有两个消息到达，那么只有一个通知被发出，只能读出第一个消息，并调用`sigsuspend`等待另一个消息，而对应它的通知可能永远不会发出，在此期间，另一个消息放置于该队列中等待读取，而我们一致忽略它。
-- 使用非阻塞`mq_receive`的信号通知
+- 使用非阻塞`mq_receive`的信号通知`mqnotifysig3.c`
+  - 当使用`mq_notify`产生信号时，总是以非阻塞模式读取消息队列
+  - 问题
+    - 不够高效，处理器处于忙等（轮询查看队列里有没有数据）。
+- 使用`sigwait`代替信号处理程序的信号通知`mqnotifysig4.c`
+  - 更为简易（并且更为高效）的办法之一是阻塞在某个函数中，仅仅等待该信号的递交，而不是让内核执行一个只为设置一个标志的信号处理程序。`sigwait`提供了这种能力
+  ```
+  #include <signal.h>
+  /* @param
+   * set：等待发生的信号集
+   * sig：被递交信号的个数
+   * return：成功返回0，失败返回正值，设置errno
+   */
+  int sigwait(const sigset_t *set, int *sig);
+  ```
+- 使用`select`的Posix消息队列`mqnotifusig5.c`
+  - 消息队列描述符（`mqd_t`变量）不是“普通”描述符，它不能用在`select`或`poll`中
+  - 可以伴随一个管道和`mq_notify`函数使用他们（在信号处理函数中调用`write`向管道写数据，`select`用来检测管道是否有数据可读）
+- 启动线程`mqnotifythread.c`
+  - 异步事件通知的另一种方式是把`sig_notify`设置成`SIGEV_THREAD`，这回创建一个新的线程。该线程调用由`sigev_notify_function`指定的函数，所用的参数由`sigev_value`指定。新线程的属性由`sigev_notify_attributes`指定，要是默认属性合适的化，它可以是一个空指针。
+
+### Posix实时信号
+信号可以划分为两个大组
+- 其值在`SIGRTMIN`和`SIGRTMAX`之间（包括两者）的实时信号。Posix要求至少提供`RTSIG_MAX`这种实时信号，而该常值的最小值为8
+- 所有其他信号：`SIGALRM`、`SIGINT`、`SIGKILL`等
+
+接收某个信号的进程的`sigaction`调用中是否指定了新的`SA_SIGINFO`标志会有实时行为差异
+
+<img src='./imgs/posix-realtime.png'>
+
+实时行为隐含如下特征
+- 信号是排队的。也就是说产生几次，就提交几次。对于不排队的信号来说，产生了三次的某种信号可能只提交一次
+- 当有多个`SIGRTMIN`到`SIGRTMAX`范围内的解阻塞信号排队时，值较小的信号先于值较大的信号递交。
+- 当某个非实时信号递交时，传递给它的信号处理程序的唯一参数是该信号的值。实时信号比其他信号携带更多的信息。通过设置`SA_SIGINFO`标志（`act.sa_falgs = SA_SIGINFO`）安装的任意实时信号的信号处理函数声明如下：
+  ```
+  void func(int signo, siginfo_t *info, void *context);
+
+  typedef struct {
+    int          si_signo;  /* same value as signo argument */
+    int          si_code;   /* SI_{USER, QUEUE, TIMER, ASYNCIO, MESGQ} */
+    union sigval si_value;  /* interget or pointer from sender*/
+  } siginfo_t;
+  /**
+   SI_USER：信号由kill函数发出
+   SI_QUEUE：信号由sigqueue函数发出
+   SI_TIMER：信号由timer_settime函数设置的某个定时器的倒是发生
+   SI_ASYNCIO：信号由某个异步IO请求的完成产生
+   SI_MESGQ：信号在有一个消息被放置到某个空消息队列中时产生
+   */
+  ```
+
+例子`rtsignal.c`
+
+### 使用内存映射IO实现Posix消息队列
