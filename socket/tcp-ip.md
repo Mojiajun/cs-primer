@@ -360,8 +360,10 @@ SO_SNDBUF是输入缓冲大小相关可选项，SO_RCVBUF是输出缓冲大小�
 
   struct sigaction {
     void (*sa_hanlder)(int);
+    void (*sa_sigaction)(int, siginfo_t *, void *);
     sigset_t sa_mask;  // 暂时初始化为0
     int sa_flags;      // 暂时初始化为0
+    void (*sa_restorer)(void);
   };
   ```
 - 利用信号处理技术消灭僵尸进程`remove_zombie.c`
