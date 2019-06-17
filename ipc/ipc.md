@@ -1188,3 +1188,8 @@ int shmctl(int shmid, int cmd, struct shmid_ds *buff);
 
 ### 共享内存区限制
 <img src='./imgs/svshm-limits.png'>
+
+## P1、使用内存映射IO实现Posix消息队列
+提供一个使用内存映射IO以及Posix互斥锁和条件变量完成的Posix消息队列的实现
+
+<img src='./imgs/pxmsg-by-mmap.png'>
