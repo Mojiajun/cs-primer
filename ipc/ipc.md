@@ -122,11 +122,11 @@ int mkfifo(const char *pathname, mode_t mode);
 #include <bits/mqueue.h>
 typedef int mqd_t;
 
-struct mq_attr {    /* linux */
-  long mq_flags;	  /* Message queue flags. */
-  long mq_maxmsg;	  /* Maximum number of messages. */
-  long mq_msgsize;	/* Maximum message size. */
-  long mq_curmsgs;	/* Number of messages currently queued. */
+struct mq_attr {     /* linux */
+  long mq_flags;     /* message queue flags */
+  long mq_maxmsg;    /* maximum number of messages */
+  long mq_msgszie;   /* maximum message size */
+  long mq_curmsgs;   /* number of messages currently queued */
   long __pad[4];
 };
 
@@ -242,7 +242,7 @@ note: sigev_notify specifies how notification is to be performed.
     SIGEV_THREAD: Notify the process by invoking sigev_notify_function "as if" it were the start function of a new thread.
 ```
 `mq_notify`函数说明
-- 如果`notification`参数为非空，那么当前进程希望有一个消息到达指定的先前为空的队列时得到通知
+- 如果`notification`参数不为空，那么当前进程希望有一个消息到达指定的先前为空的队列时得到通知
 - 如果`notification`参数为空指针，而且当前进程目前被注册为接收所指定队列的通知，那么已存在的注册将被撤销
 - 任意时刻只有一个进程可以被注册为某个队列的通知
 - 当有一个消息到达某个先前为空的队列，而且已有一个进程被注册为接收该队列的通知，只有在没有任何线程阻塞在该队列的`mq_receive`调用的前提下，通知才会发出。也就是说，在`mq_receive`调用中的阻塞比任何通知的注册都优先
@@ -257,7 +257,7 @@ note: sigev_notify specifies how notification is to be performed.
   - 避免从信号处理程序调用任何函数的方法之一是：让处理程序仅仅设置一个全局标志，由某个线程检查该标志以确定何时接受到一个消息。
   - 通过调用`sigsuspend`阻塞，以等待某个消息的到达。当有一个消息被放置到某个空队列中时，该信号产生，主线程被阻止，信号处理程序执行并设置`mqflag`变量，主线程再次执行，发现`mq_flag`为非零，于是读出该消息
   - 问题
-    - 考虑一下第一个消息被读出之前有两个消息到达的情形（课题在调用`mq_notify`前调用`sleep`模拟）。这里的基本问题是，通知只是在一个消息没放置到某个空队列上时才发出。如果在能够读出第一个消息前有两个消息到达，那么只有一个通知被发出，只能读出第一个消息，并调用`sigsuspend`等待另一个消息，而对应它的通知可能永远不会发出，在此期间，另一个消息放置于该队列中等待读取，而我们一致忽略它。
+    - 考虑一下第一个消息被读出之前有两个消息到达的情形（可以在调用`mq_notify`前调用`sleep`模拟）。这里的基本问题是，通知只是在一个消息没放置到某个空队列上时才发出。如果在能够读出第一个消息前有两个消息到达，那么只有一个通知被发出，只能读出第一个消息，并调用`sigsuspend`等待另一个消息，而对应它的通知可能永远不会发出，在此期间，另一个消息放置于该队列中等待读取，而我们一致忽略它。
 - 使用非阻塞`mq_receive`的信号通知`mqnotifysig3.c`
   - 当使用`mq_notify`产生信号时，总是以非阻塞模式读取消息队列
   - 问题
@@ -277,7 +277,7 @@ note: sigev_notify specifies how notification is to be performed.
   - 消息队列描述符（`mqd_t`变量）不是“普通”描述符，它不能用在`select`或`poll`中
   - 可以伴随一个管道和`mq_notify`函数使用他们（在信号处理函数中调用`write`向管道写数据，`select`用来检测管道是否有数据可读）
 - 启动线程`mqnotifythread.c`
-  - 异步事件通知的另一种方式是把`sig_notify`设置成`SIGEV_THREAD`，这回创建一个新的线程。该线程调用由`sigev_notify_function`指定的函数，所用的参数由`sigev_value`指定。新线程的属性由`sigev_notify_attributes`指定，要是默认属性合适的化，它可以是一个空指针。
+  - 异步事件通知的另一种方式是把`sig_notify`设置成`SIGEV_THREAD`，这会创建一个新的线程。该线程调用由`sigev_notify_function`指定的函数，所用的参数由`sigev_value`指定。新线程的属性由`sigev_notify_attributes`指定，要是默认属性合适的化，它可以是一个空指针。
 
 ### Posix实时信号
 信号可以划分为两个大组
@@ -385,8 +385,8 @@ struct msgbuf {
  *    0：返回队列中的第一个消息
  *    >0：返回其类型值为type的第一个消息
  *    <0：返回其类型值小于或等于type参数的结对值的消息中类型值最小的第一个消息
- * flag：指定所请求的消息不再所指定的队列中时该做如何处理
- *    0：阻塞，知道下列某个事件发生为止：
+ * flag：指定所请求的消息不在所指定的队列中时该做如何处理
+ *    0：阻塞，直到下列某个事件发生为止：
  *        （1）有一个所请求类型的消息可读
  *        （2）由msqid标识的消息队列从系统删除（此时返回EIDRM错误）
  *        （3）调用线程被某个捕获的信号所中断（此时返回EINTR错误）
@@ -403,7 +403,7 @@ ssize_t msgrcv(int msqid, void *ptr, size_t length, long type, int flag);
 /* @param
  * msqid：标识符
  * cmd：控制操作命令
- * buff：
+ * buff：值-结果传递
  * return：成功返回0，出错返回-1
  */
 int msgctl(int msqid, int cmd, struct msqid_ds *buff);
@@ -414,7 +414,7 @@ int msgctl(int msqid, int cmd, struct msqid_ds *buff);
 - IPC_STAT：（通过`buff`参数）给调用者返回当前`msqid_ds`结构
   
 ### 复用消息
-与一个队列中的每个消息相关联的类型字段提供了两个特性
+与一个队列中的每个消息相关联的类型字段`msgbuf.mtype`提供了两个特性
 - 类型字段可用于标识消息，从而允许多个进程在单个队列上复用消息
 - 类型字段可用作优先级字段
   
@@ -455,14 +455,15 @@ int pthread_mutex_unlock(pthread_mutex_t *mptr);
 ### 条件变量：等待与信号发送`mutex_prodcons3.c`
 条件变量用于等待。每个条件变量总是有一个互斥锁与之关联。
 
-如果条件变量是静态分配的，那么可以把它初始化成常值`PTHREAD_MUTEX_INITIALIZER`，如果是动态分配的（例如调用`malloc`），必须在运行时之前调用`pthread_cond_init`函数初始化
+如果条件变量是静态分配的，那么可以把它初始化成常值`PTHREAD_COND_INITIALIZER`，如果是动态分配的（例如调用`malloc`），必须在运行时之前调用`pthread_cond_init`函数初始化
 ```
 #include <pthread.h>
-/* @param
+/* @brief
+ * 会先解除*mptr，然后阻塞在等待对列里，直到再次被唤醒。唤醒后，该进程会先锁定*mptr，再读取资源
+ * @param
  * cptr：条件变量指针
  * mptr：互斥锁指针
  * return：成功返回0，失败返回为正的Exxx值
- * 会先解除*mptr，然后阻塞在等待对列里休眠，直到再次被唤醒。唤醒后，该进程会先锁定*mptr，再读取资源
  */
 int pthread_cond_wait(pthread_cond_t *cptr, pthread_mutex_t *mptr);
 
@@ -571,7 +572,7 @@ int pthread_condattr_setpshared(const pthread_condattr_t *attr, int value);
 
 ### 持有锁期间进程终止
 - 进程终止时系统不会自动释放持有的互斥锁、读写锁和Posix信号量，进程终止时内核总是自动清理的唯一同步锁类型是`fcntl`记录锁。使用System V信号量时，应用程序可以选择进程终止时内核是否自动清理某个信号量锁
-- 一个线程也可以在持有某个互斥锁期间终止，自己调用`pthread_exit`或被另一个线程取消。如果线程调用`pthread_exit`资源终止时，这时它应该知道自己还持有一个互斥锁(对于程序员来说)，如果是被另一个线程取消的情况，线程可以安装清楚处理程序(`pthread_cleanup_push`)，在被取消时调用来释放相应的锁。
+- 一个线程也可以在持有某个互斥锁期间终止，自己调用`pthread_exit`或被另一个线程取消。如果线程调用`pthread_exit`资源终止时，这时它应该知道自己还持有一个互斥锁(对于程序员来说)，如果是被另一个线程取消的情况，线程可以安装清除处理程序(`pthread_cleanup_push`)，在被取消时调用来释放相应的锁。
 - 对于线程意外操作导致进程终止的情况，就和进程终止时相同。
 
 ## 8、读写锁
@@ -682,7 +683,7 @@ int pthread_setcanceltype(int type, int *oldtype);
 void pthread_cleanup_push(void (*function)(void *), void *arg);
 
 /* @param
- * 总是删除调用线程的取消清理栈中位于栈定的函数，而且如果execute不为0，那就调用该函数
+ * 总是删除调用线程的取消清理栈中位于栈顶的函数，而且如果execute不为0，那就调用该函数
  */
 void pthread_cleanup_pop(int execute);
 ```
@@ -776,7 +777,7 @@ Posix.1保证，如果以`O_CREAT`（若文件不存在则创建它）和`O_EXCL
 - 挂出一个信号量。该操作将信号量的值加1，如果有一些进程阻塞着等待该信号量的值变为大于0，其中一个进程现在就可能被唤醒。
 
 ### `sem_open`、`sem_close`和`sem_unlink`函数
-函数`sem_open`创建一个新的有名信号量或打开一个已存在的有名信号量。有名信号量总是即可用于线程间同步，又可用于进程间的同步
+函数`sem_open`创建一个新的具名信号量或打开一个已存在的具名信号量。具名信号量总是即可用于线程间同步，又可用于进程间的同步
 ```
 #include <semaphore.h>
 /* @param
@@ -791,7 +792,7 @@ sem_t *sem_open(const char *name, int oflag, ...
 
 如果指定了`O_CREAT`（而没有指定`O_EXCL`），那么只有当所需信号量尚未存在时才初始化它。
 
-使用`sem_open`打开的有名信号量，使用`sem_close`将其关闭
+使用`sem_open`打开的具名信号量，使用`sem_close`将其关闭
 ```
 #include <semaphore.h>
 /* @param
@@ -800,9 +801,9 @@ sem_t *sem_open(const char *name, int oflag, ...
  */
 int sem_close(sem_t *sem);
 ```
-一个进程终止时，内核还对其上仍然打开着的所有具名信号**自动执行**这样的信号关闭操作。不论该进程是自愿终止的还是非自愿终止的，这种激动关闭都会发生。
+一个进程终止时，内核还对其上仍然打开着的所有具名信号**自动执行**这样的信号关闭操作。不论该进程是自愿终止的还是非自愿终止的，这种自动关闭都会发生。
 
-关闭一个信号量并没有将它从系统中删除。这就是说，Posix有名信号量至少是随内核持续的：即使当前没有进程打开着某个信号量，它的值仍然保持。有名信号量使用`sem_unlink`从系统中删除
+关闭一个信号量并没有将它从系统中删除。这就是说，Posix有名信号量至少是随内核持续的：即使当前没有进程打开着某个信号量，它的值仍然保持。具名信号量使用`sem_unlink`从系统中删除
 ```
 #include <semaphore.h>
 int sem_unlink(const char *name); /* 成功返回0，失败返回-1*/
@@ -872,21 +873,23 @@ int sem_destroy(sem_t *sem); /* 成功返回0，失败返回-1 */
 - 计数信号量
 - 计数信号量集
 
+当我们在谈论“System V 信号量”时，所指的是计数信号量集，当我们在谈论“Posix信号量”时，所指的是单个计数信号量。
+
 对于系统中的每个信号量集，内核维护一个如下的信息结构
 ```
 #include <sys/sem.h>
 struct semid_ds {
   struct ipc_perm  sem_perm;  /* operation permission struct */
-  struct sem       *sem_base; /* ptr to array of semaphores in set */
+  struct sem      *sem_base;  /* ptr to array of semaphores in set */
   ushort           sem_nsems; /* # of semaphores in set */
   time_t           sem_otime; /* time of last semop() */
   time_t           sem_ctime; /* time of creation or last IPC_SET */
 };
 struct sem {
-  ushort   semval;  /* semaphore value, nonnegative */
-  short    sempid;  /* PID of last sucessful semop() SETVAL, SETALL */
-  ushort_t semncnt; /* # awaiting semval > current value */
-  ushort_t semzcnt; /* # awaiting semval = 0 */
+  ushort           semval;    /* semaphore value, nonnegative */
+  short            sempid;    /* PID of last sucessful semop() SETVAL, SETALL */
+  ushort_t         semncnt;   /* # awaiting semval > current value */
+  ushort_t         semzcnt;   /* # awaiting semval = 0 */
 };
 ```
 
