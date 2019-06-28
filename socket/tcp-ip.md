@@ -207,7 +207,7 @@ file_server.c file_client.c
 ### 利用域名获取IP地址
 ```
 #include <netdb.h>
-struct hosten *gethostbyname(const char *hostname); // 成功时返回hosten结构体地址，失败时返回NULL指针
+struct hostent *gethostbyname(const char *hostname); // 成功时返回hosten结构体地址，失败时返回NULL指针
 
 struct hostent {
   char *h_name;      // official name
@@ -221,7 +221,7 @@ struct hostent {
 
 - h_name：官方域名
 - h_aliases：绑定到同一地址的多个域名
-- h_addrtype：IP地址类型IPv4还是IPv6（AF_INEThuoAF_INET6）
+- h_addrtype：IP地址类型IPv4还是IPv6（AF_INET或者AF_INET6）
 - h_length：IP地址长度
 - h_addr_list：以整数形式保持域名对应的IP地址
   ```
@@ -325,7 +325,7 @@ SO_SNDBUF是输入缓冲大小相关可选项，SO_RCVBUF是输出缓冲大小�
     /* @param
      * pid：等待终止的目标子进程的ID，若传递-1，则与wait函数相同，可以等待任意子进程终止
      * statloc：与wait函数statloc参数含义相同
-     * options：传递头文件sys/wait.h中声明的常量WNOHANG，即使别有终止的子进程也不会进入阻塞状态，而是返回0并退出函数
+     * options：传递头文件sys/wait.h中声明的常量WNOHANG，即没有终止的子进程也不会进入阻塞状态，而是返回0并退出函数
      */
     pid_t waitpid(pid_t pid, int *statloc, int options); // 成功时返回终止的子进程ID（或0），失败返回-1
     ```
@@ -459,7 +459,7 @@ ssize_t recv(int sockfd, void *buf, size_t nbytes, int flags);
   |MSG_OOB|用于传输带外数据（Out-of-band data）|.|.|
   |MSG_PEEK|验证输入缓冲中是否存在接受的数据||.|
   |MSG_DONTROUTE|传输过程和总不参照路由表，在本地网络中寻找目的地|.||
-  |MDG_DONTWAIT|调用IO函数时不阻塞，用于使用非阻塞（Non-blocking）IO|.|.|
+  |MSG_DONTWAIT|调用IO函数时不阻塞，用于使用非阻塞（Non-blocking）IO|.|.|
   |MSG_WAITALL|防止函数返回，知道接收全部请求的字节数||.|
 
 - `MSG_OOB`：发送紧急消息
@@ -483,8 +483,8 @@ ssize_t recv(int sockfd, void *buf, size_t nbytes, int flags);
 ssize_t writev(int filedes, const struct iovec *iov, int iovcnt);
 
 struct iovec {
-  void *iov_base; // 缓冲地址
-  void *iov_len;  // 缓冲大小
+  void  *iov_base; // 缓冲地址
+  size_t iov_len;  // 缓冲大小
 };
 
 /***比如****************************
@@ -511,7 +511,7 @@ ssize_t readv(int filedes, const struct iovec *iov, int iovcnt);
 ### 多播 --- 数据传输基于UDP完成
 - 多播数据传输特点
   - 多播服务端针对特定多播组，只发送一次数据
-  - 即使只发送一次数据，但改组内的所有客户端都会接受数据
+  - 即使只发送一次数据，但该组内的所有客户端都会接受数据
   - 多播组数可以在IP地址范围内任意增加
   - 加入特定组即可接受发往该多播组的数据
 - 多播组是D类IP地址（224.0.0.0～239.255.255.255），向网络传递1个数据包时，路由器将复制该数据包并传递到多个主机
@@ -682,7 +682,7 @@ int fileno(FILE *stream); // 成功时返回转换后的文件描述符，失败
 int dup(int fildes);               // 成功时返回复制的文件描述符，失败时返回-1
 int dup2(int fildes, int fildes2); // fildes2是明确指定目的文件描述符的值。成功时返回复制的文件描述符，失败时返回-1
 ```
-### 无论负责出多少文件描述符，均应调用`shutdown`函数发送`EOF`并进入半关闭状态
+### 无论复制出多少文件描述符，均应调用`shutdown`函数发送`EOF`并进入半关闭状态
 
 ## 16、优于`select`的`epoll`
 ### 基于`select`的IO复用技术速度慢的原因
@@ -803,7 +803,7 @@ int pthread_join(pthread_t thread, void **status);
 - 非线程安全函数对应的线程安全函数加`_r`后缀
   ```
   struct hostent *gethostbyname(const char *hostname);
-  struct hotent *gethostbyname_r(const char *name, struct hostent *result, char *buffer, int buflen, int *h_errnop);
+  struct hostent *gethostbyname_r(const char *name, struct hostent *result, char *buffer, int buflen, int *h_errnop);
   ```
 ### 工作（Worker）线程模型 `thread4.c`
 <img src='./imgs/thread-worker.png'>
