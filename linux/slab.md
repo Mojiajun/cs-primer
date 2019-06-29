@@ -383,8 +383,6 @@ out:
 }
 ```
 
-<img src='./imgs/ac_get_obj.png'>
-
 ### STEP2、若STEP1失败，调用`cache_alloc_refill`
 ```
 static void *cache_alloc_refill(
@@ -481,31 +479,31 @@ static int cache_grow(struct kmem_cache *cachep,
   gfp_t local_flags;
   struct kmem_cache_node *n;
 
-	BUG_ON(flags & GFP_SLAB_BUG_MASK);
-	local_flags = flags & (GFP_CONSTRAINT_MASK|GFP_RECLAIM_MASK);
+  BUG_ON(flags & GFP_SLAB_BUG_MASK);
+  local_flags = flags & (GFP_CONSTRAINT_MASK|GFP_RECLAIM_MASK);
 
-	/* 获取节点列表list_lock以更改此节点上的colour_next */
-	check_irq_off();
-	n = cachep->node[nodeid];
-	spin_lock(&n->list_lock);
+  /* 获取节点列表list_lock以更改此节点上的colour_next */
+  check_irq_off();
+  n = cachep->node[nodeid];
+  spin_lock(&n->list_lock);
 
-	/* 获取slab的colour_next，然后调整下一个值 */
-	offset = n->colour_next;
-	n->colour_next++;
-	if (n->colour_next >= cachep->colour)
-		n->colour_next = 0;
-	spin_unlock(&n->list_lock);
+  /* 获取slab的colour_next，然后调整下一个值 */
+  offset = n->colour_next;
+  n->colour_next++;
+  if (n->colour_next >= cachep->colour)
+    n->colour_next = 0;
+  spin_unlock(&n->list_lock);
 
-	offset *= cachep->colour_off; /* 乘以颜色基准offset */
+  offset *= cachep->colour_off; /* 乘以颜色基准offset */
 
-	if (local_flags & __GFP_WAIT)
-		local_irq_enable();
-	kmem_flagcheck(cachep, flags); /* flags合法性检查 */
+  if (local_flags & __GFP_WAIT)
+    local_irq_enable();
+  kmem_flagcheck(cachep, flags); /* flags合法性检查 */
 
-	if (!page)
-		page = kmem_getpages(cachep, local_flags, nodeid); /* 尝试从nodeid分配一个物理页面 */
-	if (!page)
-		goto failed;
+  if (!page)
+    page = kmem_getpages(cachep, local_flags, nodeid); /* 尝试从nodeid分配一个物理页面 */
+  if (!page)
+    goto failed;
   /* ............ */
 ```
 
@@ -514,20 +512,20 @@ static int cache_grow(struct kmem_cache *cachep,
 
 ```
   /* ............ */
-	/* 获取slab mgmt */
-	freelist = alloc_slabmgmt(cachep, page, offset, 
+  /* 获取slab mgmt */
+  freelist = alloc_slabmgmt(cachep, page, offset, 
           local_flags & ~GFP_CONSTRAINT_MASK, nodeid);
-	if (!freelist)
-		goto opps1;
+  if (!freelist)
+    goto opps1;
 
-	slab_map_pages(cachep, page, freelist); /* 将从addr开始的页面映射到给定的缓存和slab */
+  slab_map_pages(cachep, page, freelist); /* 将从addr开始的页面映射到给定的缓存和slab */
 
-	cache_init_objs(cachep, page);          /* 进行初始化 */
+  cache_init_objs(cachep, page);          /* 进行初始化 */
 
-	if (local_flags & __GFP_WAIT)
-		local_irq_disable();
-	check_irq_off();
-	spin_lock(&n->list_lock);
+  if (local_flags & __GFP_WAIT)
+    local_irq_disable();
+  check_irq_off();
+  spin_lock(&n->list_lock);
   /* ............ */
 ```
 
@@ -536,24 +534,25 @@ static int cache_grow(struct kmem_cache *cachep,
 
 ```
   /* ............. */
-	/* Make slab active. */
-	list_add_tail(&page->lru, &(n->slabs_free)); /* 将分配的加到slabs_free中 */
-	STATS_INC_GROWN(cachep);
-	n->free_objects += cachep->num;
-	spin_unlock(&n->list_lock);
-	return 1;
+  /* Make slab active. */
+  list_add_tail(&page->lru, &(n->slabs_free)); /* 将分配的加到slabs_free中 */
+  STATS_INC_GROWN(cachep);
+  n->free_objects += cachep->num;
+  spin_unlock(&n->list_lock);
+  return 1;
 opps1:
-	kmem_freepages(cachep, page);
+  kmem_freepages(cachep, page);
 failed:
-	if (local_flags & __GFP_WAIT)
-		local_irq_disable();
-	return 0;
+  if (local_flags & __GFP_WAIT)
+    local_irq_disable();
+  return 0;
 }
 ```
 
 #### 将一部分obj放入`array_cache`并再次分配对象
 <img src='./imgs/cache_alloc_refill.png'>
 
+<img src='./imgs/ac_get_obj.png'>
 
 ## 释放对象--`kmem_cache_free`
 ### `avail < limit` 可直接放回
@@ -561,59 +560,156 @@ failed:
 
 ```
 void kmem_cache_free(struct kmem_cache *cachep, void *objp) {
-	unsigned long flags;
-	cachep = cache_from_obj(cachep, objp);
-	if (!cachep)
-		return;
+  unsigned long flags;
+  cachep = cache_from_obj(cachep, objp);
+  if (!cachep)
+    return;
 
-	local_irq_save(flags);
-	debug_check_no_locks_freed(objp, cachep->object_size);
-	if (!(cachep->flags & SLAB_DEBUG_OBJECTS))
-		debug_check_no_obj_freed(objp, cachep->object_size);
-	__cache_free(cachep, objp, _RET_IP_); /* 主要工作 */
-	local_irq_restore(flags);
+  local_irq_save(flags);
+  debug_check_no_locks_freed(objp, cachep->object_size);
+  if (!(cachep->flags & SLAB_DEBUG_OBJECTS))
+    debug_check_no_obj_freed(objp, cachep->object_size);
+  __cache_free(cachep, objp, _RET_IP_); /* 主要工作 */
+  local_irq_restore(flags);
 
-	trace_kmem_cache_free(_RET_IP_, objp);
+  trace_kmem_cache_free(_RET_IP_, objp);
 }
 ```
 
-### `avail >= limit` 刷新`array_cache`腾出足够空间
-
+### `avail == limit` 刷新`array_cache`腾出足够空间
 ```
-static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac)
-{
-	int batchcount;
-	struct kmem_cache_node *n;
-	int node = numa_mem_id();
+static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac) {
+  int batchcount;
+  struct kmem_cache_node *n;
+  int node = numa_mem_id();
 
-	batchcount = ac->batchcount;
+  batchcount = ac->batchcount;
 #if DEBUG
-	BUG_ON(!batchcount || batchcount > ac->avail);
+  BUG_ON(!batchcount || batchcount > ac->avail);
 #endif
-	check_irq_off();
-	n = cachep->node[node];
-	spin_lock(&n->list_lock);
-	if (n->shared) {
-		struct array_cache *shared_array = n->shared;
-		int max = shared_array->limit - shared_array->avail;
-		if (max) {
-			if (batchcount > max)
-				batchcount = max;
-			memcpy(&(shared_array->entry[shared_array->avail]),
-			       ac->entry, sizeof(void *) * batchcount);
-			shared_array->avail += batchcount;
-			goto free_done;
-		}
-	}
-	free_block(cachep, ac->entry, batchcount, node);
+  check_irq_off();
+  n = cachep->node[node];
+  spin_lock(&n->list_lock);
+  if (n->shared) {
+    struct array_cache *shared_array = n->shared;
+    int max = shared_array->limit - shared_array->avail;
+    if (max) {
+      if (batchcount > max)
+        batchcount = max;
+      memcpy(&(shared_array->entry[shared_array->avail]),
+            ac->entry, sizeof(void *) * batchcount);
+      shared_array->avail += batchcount;
+      goto free_done;
+    }
+  }
+  free_block(cachep, ac->entry, batchcount, node); /* 主要工作 */
 free_done:
 #if STATS
-	/* 调试 */
+  /* 调试 */
 #endif
-	spin_unlock(&n->list_lock);
-	ac->avail -= batchcount;
-	memmove(ac->entry, &(ac->entry[batchcount]), sizeof(void *)*ac->avail);
+  spin_unlock(&n->list_lock);
+  ac->avail -= batchcount;
+  memmove(ac->entry, &(ac->entry[batchcount]), sizeof(void *)*ac->avail);
 }
 ```
 
+#### 将`array_cache`中`batchcount`个obj放回`page`
+<img src='./imgs/slab_put_obj.png'>
+
+```
+static void free_block(struct kmem_cache *cachep, void **objpp, 
+            int nr_objects, int node) {
+  int i;
+  struct kmem_cache_node *n;
+
+  for (i = 0; i < nr_objects; i++) {
+    void *objp;
+    struct page *page;
+
+    clear_obj_pfmemalloc(&objpp[i]);
+    objp = objpp[i];
+
+    page = virt_to_head_page(objp);
+    n = cachep->node[node];
+    list_del(&page->lru);
+    check_spinlock_acquired_node(cachep, node);
+    slab_put_obj(cachep, page, objp, node);
+    STATS_DEC_ACTIVE(cachep);
+    n->free_objects++;
+
+    /* fixup slab chains */
+    if (page->active == 0) {
+      if (n->free_objects > n->free_limit) {
+        n->free_objects -= cachep->num;
+        slab_destroy(cachep, page);
+      } else {
+        list_add(&page->lru, &n->slabs_free);
+      }
+    } else {
+      list_add_tail(&page->lru, &n->slabs_partial);
+    }
+  }
+}
+```
+#### 必要时释放`page`
+<img src='./imgs/slab_destroy.png'>
+
+#### 修改`entry`
+<img src='./imgs/entry_move.png'>
+
 ## 释放内存--`kmem_cache_destroy`
+```
+void slab_kmem_cache_release(struct kmem_cache *s)
+{
+	kfree(s->name);
+	kmem_cache_free(kmem_cache, s);
+}
+
+void kmem_cache_destroy(struct kmem_cache *s) {
+  get_online_cpus();
+  get_online_mems();
+
+  mutex_lock(&slab_mutex);
+
+  s->refcount--;
+  if (s->refcount)
+    goto out_unlock;
+
+  if (memcg_cleanup_cache_params(s) != 0)
+    goto out_unlock;
+
+  if (__kmem_cache_shutdown(s) != 0) {
+    printk(KERN_ERR "kmem_cache_destroy %s: "
+		       "Slab cache still has objects\n", s->name);
+    dump_stack();
+    goto out_unlock;
+  }
+
+  list_del(&s->list);
+
+  mutex_unlock(&slab_mutex);
+  if (s->flags & SLAB_DESTROY_BY_RCU)
+    rcu_barrier();
+
+  memcg_free_cache_params(s);
+#ifdef SLAB_SUPPORTS_SYSFS
+  sysfs_slab_remove(s);
+#else
+  slab_kmem_cache_release(s);  /* 主要工作 */
+#endif
+  goto out;
+
+out_unlock:
+  mutex_unlock(&slab_mutex);
+out:
+  put_online_mems();
+  put_online_cpus();
+}
+```
+
+```
+void slab_kmem_cache_release(struct kmem_cache *s) {
+  kfree(s->name);
+  kmem_cache_free(kmem_cache, s);
+}
+```
