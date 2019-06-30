@@ -13,8 +13,85 @@ SLAB分配器实际上是建立在伙伴系统算法之上的，SLAB分配器使
 - slab描述符：从伙伴系统申请的2^gforder个物理页组成一个slab，里面放着一定数量的特定类型的object
 - object描述符：
 
-## Slab分配器数据结构
 <img src='./imgs/slab_data_structures.png'>
+
+### `list_head`
+```
+#if FREELIST_BYTE_INDEX
+typedef unsigned char freelist_idx_t;
+
+struct list_head {
+  struct list_head *next, *prev;
+};
+```
+### `array_cache`
+```
+struct array_cache {
+  unsigned int   avail;        /* 可用对象的数目 */
+  unsigned int   limit;        /* 最多存放对象，指示entry数据的大小*/
+  unsigned int   batchcount;
+  unsigned int   touched;
+  void          *entry[];      /* 保存对象 */
+};
+```
+### `kmem_cache_node`
+```
+struct kmem_cache_node {
+  spinlock_t           list_lock;
+  struct list_head     slabs_partial;  /* slab链表中部分对象空闲 */
+  struct list_head     slabs_full;     /* slab链表中没有对象空闲 */
+  struct list_head     slabs_free;     /* slab链表中所有对象空闲 */
+  unsigned long        free_slabs;	   /* slabs_free长度 */
+  unsigned long        free_objects;
+  unsigned int         free_limit;
+  unsigned int         colour_next;	   /* Per-node cache coloring */
+  struct array_cache  *shared;	       /* shared per node */
+  struct alien_cache **alien;	         /* on other nodes */
+  unsigned long        next_reap;	     /* updated without locking */
+  int                  free_touched;   /* updated without locking */
+};
+```
+### `kmem_cache`
+```
+struct kmem_cache {
+/* 1) Cache tunables. Protected by slab_mutex */
+  unsigned int            batchcount;
+  unsigned int            limit;
+  unsigned int            shared;
+
+  unsigned int             size;
+  struct reciprocal_value reciprocal_buffer_size;
+/* 2) touched by every alloc & free from the backend */
+
+  unsigned int             flags;		    /* constant flags */
+  unsigned int             num;		        /* # of objs per slab */
+
+/* 3) cache_grow/shrink */
+  unsigned int             gfporder;        /* order of pgs per slab (2^n) */
+  gfp_t                    allocflags;      /* force GFP flags, e.g. GFP_DMA */
+
+  size_t                   colour;			/* cache colouring range */
+  unsigned int             colour_off;	    /* colour offset */
+  struct kmem_cache       *freelist_cache;
+  unsigned int             freelist_size;
+
+  /* constructor func */
+  void                   (*ctor)(void *obj);
+
+/* 4) cache creation/removal */
+  const char              *name;
+  struct list_head         list;
+  int                      refcount;
+  int                      object_size;
+  int                      align;
+
+/* 5) statistics */
+
+/* 6) per-cpu/per-node data, touched during every alloc/free */
+  struct kmem_cache_node **node;
+  struct array_cache      *array[NR_CPUS + MAX_NUMNODES];
+};
+```
 
 ## 创建一个Slab分配器--`kmem_cache_create`
 比如创建一个管理`struct test`的`cache`
