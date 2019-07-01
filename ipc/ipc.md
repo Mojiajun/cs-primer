@@ -227,6 +227,18 @@ int sigsuspend(const sigset_t *sgmask); /* 返回-1，并将errno设置为EINTR 
 ```
 进程的信号屏蔽字设置为由`sigmask`指向的值。在捕获一个信号或发生了一个会终止该进程的信号之前，该进程被挂起。如果捕捉到一个信号而且从该信号处理程序返回，则`sigsuspend`返回，并且该进程的信号屏蔽字设置为调用`sigsuspend`之前的值。此函数没有成功返回值，如果返回到调用者，则总是返回-1，并将`errno`设置为`EINTR`。
 
+### `sigwait`函数
+```
+#include <signal.h>
+/* @param
+ * set：信号集，等待的信号
+ * sig：返回的信号
+ * return：成功返回0,失败返回一个正数
+ */
+int sigwait(const sigset_t *set, int *sig);
+```
+`sigwait`挂起调用线程，直到`set`指定的信号之一变为未决（pending signal）。`sigwait`从`set`中选择一个未决信号，以原子方式从系统中的待处理信号集中清除它，并通过`sig`返回，如果有多个信号排队等待，则第一个信号会被返回，其余信号保持排队。
+
 ### 信号生命周期
 1. 信号诞生：触发信号的事件发生
 2. 信号在进程中注册完毕：进程的`task_struct`结构中有关于本进程中未决信号的数据成员
