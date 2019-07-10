@@ -283,8 +283,8 @@ HTTP请求报文中常用的方法
 
 GET和POST的区别
 
-1. get重点在从服务器上获取资源，post重点在向服务器发送数据；
-2. get传输数据是通过URL请求，以field（字段）= value的形式，置于URL后，并用"?"连接，多个请求数据间用"&"连接，如`http://127.0.0.1/Test/login.action?name=admin&password=admin`，这个过程用户是可见的；post传输数据通过Http的post机制，将字段与对应值封存在请求实体中发送给服务器，这个过程对用户是不可见的；
+1. GET重点在从服务器上获取资源，POST重点在向服务器发送数据；
+2. GET传输数据是通过URL请求，以field（字段）= value的形式，置于URL后，并用"?"连接，多个请求数据间用"&"连接，如`http://127.0.0.1/Test/login.action?name=admin&password=admin`，这个过程用户是可见的；post传输数据通过Http的post机制，将字段与对应值封存在请求实体中发送给服务器，这个过程对用户是不可见的；
 3. GET传输的数据量小，因为受URL长度限制，但效率较高；POST可以传输大量数据，所以上传文件时只能用POST方式；
 4. GET是不安全的，因为URL是可见的，可能会泄露私密信息，如密码等；POST较GET安全性较高；
 5. GET方式只能支持ASCII字符，向服务器传的中文字符可能会乱码。POST支持标准字符集，可以正确传递中文字符。
