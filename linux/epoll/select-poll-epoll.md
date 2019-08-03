@@ -1,17 +1,19 @@
 # `select`、`poll`和`epoll`的区别
-`select`，`poll`，`epoll`都是IO多路复用的机制。I/O多路复用就是通过一种机制，一个进程可以监视多个描述符，一旦某个描述符就绪（一般是读就绪或写就绪），能够通知程序进行相应的读写操作。但`select`，`poll`，`epoll`本质上都是同步I/O，因为他们都需要在读写事件就绪后自己负责进行读写，也就是说这个读写过程是阻塞的，而异步I/O则无需自己负责进行读写，异步I/O的实现会负责把数据从内核拷贝到用户空间。
+`select`，`poll`，`epoll`都是IO多路复用的机制。I/O多路复用就是通过一种机制，一个进程可以监视多个描述符，一旦某个描述符就绪（可读、可写或出错），能够通知程序进行相应的读写操作。但`select`，`poll`，`epoll`本质上都是同步I/O，因为他们都需要在读写事件就绪后自己负责读写数据，也就是说这个读写过程是阻塞的，而异步I/O则无需自己负责进行读写，异步I/O的实现会负责把数据从内核拷贝到用户空间。
 
 ## `select`实现及其优缺点
-`select`提供一种`fd_set`的数据结构，实际上是一个`long`类型的数组。数组每一位都能与已打开的文件描述符`fd`建立联系（`FD_SET`、`FD_CLR`），当调用`select`时，由内核遍历`fd_set`的内容，根据IO状态修改`fd_set`的内容，由此来通知描述符就绪。
+`select`提供一种`fd_set`的数据结构，实际上是一个`long`类型的数组。数组每一位都能与已打开的文件描述符`fd`建立联系（`FD_SET`、`FD_CLR`），当调用`select`时，由内核遍历`fd_set`的内容，根据IO状态修改`fd_set`的内容，通过将某位设置为1标志描述符已经就绪。
 
 ### 函数接口
 ```
+/// @file linux/posix_types
+#define __FD_SETSIZE 1024
 typedef struct {
-  unsigned long fds_bits[__FD_SETSIZE / (8 * sizeof(long))]; /* 1024 */
+  unsigned long fds_bits[__FD_SETSIZE / (8 * sizeof(long))]; /* 1024位 */
 }__kernel_fd_set;
 typedef __kernel_fd_set fd_set;
 
-#include <sys/select.h>
+/// @file sys/select.h
 int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *execeptfds,
            struct timeval *timeout);
 void FD_ZERO(int fd, fd_set *set);
@@ -25,15 +27,18 @@ int FD_ISSET(int fd, fd_set *set);
 select(nfds, inp, outp, exp, timeout):
   SYSCALL_DEFINE5(select, nfds, inp, outp, exp, timeout):
     struct timespec *to = NULL;
-    if(timeout) {/*copy and transfer from timeout to to */}
+    if(timeout) {
+      // 将用户空间的时间转换为内核空间的时间、粒度为纳秒
+    }
     core_sys_select(nfds, inp, outp, exp, to):
       do_select(...):
 ```
 #### `core_sys_select`函数主要代码
 ```
-#define FRONTEND_STACK_ALLOC	256
-#define SELECT_STACK_ALLOC	FRONTEND_STACK_ALLOC
-typedef struct {
+/// @file include/linux/poll.h
+#define FRONTEND_STACK_ALLOC 256
+#define SELECT_STACK_ALLOC FRONTEND_STACK_ALLOC // 栈空间预分配大小，256位
+typedef struct { // 分别表示传入（监听）和返回（就绪）的可读、可写、出错的fd
   unsigned long *in, *out, *ex;
   unsigned long *res_in, *res_out, *res_ex;
 } fd_set_bits;
@@ -41,12 +46,16 @@ typedef struct {
 
 int core_sys_select((int n, fd_set __user *inp, fd_set __user *outp,
                     fd_set __user *exp, s64 *timeout)) {
+  // 首先在栈空间预分配可以容纳256位的空间，用来存储fd_set_bits数据结构
+  // 该结构中有6个相同长度的成员，所以预分配的栈空间最多可以处理42个描述符
+  // 如果n大于42，就必须在堆空间重新分配空间。
   fd_set_bits fds;
-  long stack_fds[SELECT_STACK_ALLOC / sizeof(long)]; /* 32 */
+  long stack_fds[SELECT_STACK_ALLOC / sizeof(long)]; // 栈空间预分配256位
   void *bits = stack_fds;
-  unsigned int size = FD_BYTES(nfds);                /* 存储n个bit需要的字节数 */
-  if(size > sizeof(stack_fds) / 6) {                 /* 6个bitmap */
-    bits = kmalloc(6 * size, GFP_KERNEL);            /* 重新分配大小 */
+  if (n > max_fds) n = max_fds;
+  unsigned int size = FD_BYTES(n);                   // 存储n个bit需要的字节数
+  if(size > sizeof(stack_fds) / 6) {                 // 6个bitmap
+    bits = kmalloc(6 * size, GFP_KERNEL);            // 重新分配大小
   }
   fds.in      = bits;
   fds.out     = bits +   size;
@@ -55,24 +64,151 @@ int core_sys_select((int n, fd_set __user *inp, fd_set __user *outp,
   fds.res_out = bits + 4*size;
   fds.res_ex  = bits + 5*size;
   
+  // 首先将用户空间的三个表示in、out和ex的fd_set分别拷贝到内核空间fd_set_bits对应位置
   if ((ret = get_fd_set(n, inp, fds.in)) || (ret = get_fd_set(n, outp, fds.out)) ||
-      (ret = get_fd_set(n, exp, fds.ex)))  /* 将数组inp、outp、exp从用户空间拷贝到内核空间 */
+      (ret = get_fd_set(n, exp, fds.ex)))
     goto out;
-  zero_fd_set(n, fds.res_in);              /* 返回空间清零 */
+  
+  // 清空返回空间
+  zero_fd_set(n, fds.res_in);
   zero_fd_set(n, fds.res_out);
   zero_fd_set(n, fds.res_ex);
-
-  ret = do_select(n, &fds, end_time);      /* 主要是一遍一遍循环遍历每一个文件描述符，查询哪一个为就绪状态 */
-
+  
+  // 然后select操作
+  ret = do_select(n, &fds, end_time);
+  
+  // 最后将结果从内核空间拷贝到用户空间
   if (set_fd_set(n, inp, fds.res_in) || set_fd_set(n, outp, fds.res_out) ||
-      set_fd_set(n, exp, fds.res_ex)) /* 将数组返回值从内核空间拷贝到用户空间 */
+      set_fd_set(n, exp, fds.res_ex))
     ret = -EFAULT;
 
   return ret;
 }
 ```
+#### `do_select`主要代码
+```
+int do_select(int n, fd_set_bits *fds, struct timespec *end_time) {
+  // 获取最大描述符，最大描述符可能不是n，可能有关闭的文件，需要重新找到最大描述符
+  retval = max_select_fd(n, fds);
+  if (retval < 0)
+    return retval;
+  n = retval;
+
+  // 主循环
+  for (;;) {
+    unsigned long *rinp, *routp, *rexp, *inp, *outp, *exp;
+    bool can_busy_loop = false;
+
+    inp = fds->in; outp = fds->out; exp = fds->ex;
+    rinp = fds->res_in; routp = fds->res_out; rexp = fds->res_ex;
+
+    // 轮训，以long字节为单位，遍历所有文件描述符号，检查被监听文件描述符是否有就绪事件
+    for (i = 0; i < n; ++rinp, ++routp, ++rexp) {
+      unsigned long in, out, ex, all_bits, bit = 1, mask, j;
+      unsigned long res_in = 0, res_out = 0, res_ex = 0;
+
+      in = *inp++; out = *outp++; ex = *exp++;
+      all_bits = in | out | ex;
+      // 如果没有任何事件（可读、可写或出错），直接处理下一个long字节
+      if (all_bits == 0) {
+        i += BITS_PER_LONG;
+        continue;
+      }
+
+      // 检查当前long字节的每一位，标志就绪事件
+      for (j = 0; j < BITS_PER_LONG; ++j, ++i, bit <<= 1) {
+        struct fd f;
+        if (i >= n)
+          break;
+        if (!(bit & all_bits)) // 没有就绪（可读、可写或出错），下一位
+          continue;
+        f = fdget(i); // 通过fd找到对应的struct fd结构
+        if (f.file) {
+          const struct file_operations *f_op;
+          f_op = f.file->f_op;
+          mask = DEFAULT_POLLMASK;
+          if (f_op->poll) {
+            // 设置监听事件（可读或者可写）到wait的key_中
+            wait_key_set(wait, in, out, bit, busy_flag);
+            // 执行poll，将wait（有监听事件以及回调）添加到对应文件的等待队列，
+            // 如果监听事件发生，唤醒本进程。同时，返回现在的事件mask
+            mask = (*f_op->poll)(f.file, wait);
+          }
+          fdput(f);
+
+          // 检查是否有监听的事件就绪，就绪就将对应位置1
+          if ((mask & POLLIN_SET) && (in & bit)) {
+            res_in |= bit;
+            retval++;
+            wait->_qproc = NULL;
+          }
+          if ((mask & POLLOUT_SET) && (out & bit)) {
+            res_out |= bit;
+            retval++;
+            wait->_qproc = NULL;
+          }
+          if ((mask & POLLEX_SET) && (ex & bit)) {
+            res_ex |= bit;
+            retval++;
+            wait->_qproc = NULL;
+          }
+          // 有监听事件处于就绪状态，遍历所有文件描述符后可以返回
+          // 否则，遍历所有文件描述符后继续循环
+          if (retval) {
+            can_busy_loop = false;
+            busy_flag = 0;
+          } else if (busy_flag & mask)
+            can_busy_loop = true;
+        }
+      }
+      // 设置返回事件
+      if (res_in)
+        *rinp = res_in;
+      if (res_out)
+        *routp = res_out;
+      if (res_ex)
+        *rexp = res_ex;
+      // 把自己重新以抢占的形式调度回来，处理紧急事情，然后立即被调度，继续执行
+      cond_resched();
+    }
+    wait->_qproc = NULL;
+    // 如果有就绪事件、超时、或者信号中断发生，结束主循环
+    if (retval || timed_out || signal_pending(current))
+      break;
+    // 错误发生，也结束主循环
+    if (table.error) {
+      retval = table.error;
+      break;
+    }
+
+    /* only if found POLL_BUSY_LOOP sockets && not out of time */
+    if (can_busy_loop && !need_resched()) {
+      if (!busy_end) {
+        busy_end = busy_loop_end_time();
+        continue;
+      }
+      if (!busy_loop_timeout(busy_end))
+        continue;
+    }
+    busy_flag = 0;
+
+    // 设置超时时间
+    if (end_time && !to) {
+      expire = timespec_to_ktime(*end_time);
+      to = &expire;
+    }
+    // 设置当前进程的状态为TASK_INTERRUPTIBLE，可以被信号和wake_up()唤醒的，
+    // 当信号到来时，进程会被设置为可运行。
+    if (!poll_schedule_timeout(&table, TASK_INTERRUPTIBLE, to, slack))
+      timed_out = 1;
+  }
+  poll_freewait(&table);
+  return retval;
+}
+```
+
 #### `do_select`原理
-- 通过轮训文件描述符集中的文件描述符，检查描述符是否达到条件，若达到符合的相关条件则返回，否则轮训，但是当轮训的机制虽然是死循环，但是不是一直轮训，当内核轮询一遍文件描述符之后，会调用schedule_timeout函数挂起，等待fd设备或定时器来唤醒自己，然后再继续循环体看看哪些fd可用，以此提高效率。
+- 通过轮训文件描述符集中的文件描述符，检查描述符是否达到条件，若达到符合的相关条件则返回，否则轮训，但是当轮训的机制虽然是死循环，但是不是一直轮训，当内核轮询一遍文件描述符之后，会调用poll_schedule_timeout函数挂起，等待fd设备或定时器来唤醒自己，然后再继续循环体看看哪些fd可用，以此提高效率。
 
 ### 优缺点
 - 优点
@@ -108,8 +244,8 @@ poll(ufds, nfdsm, timout_msecs):
 ```
 #### `do_sys_poll`函数实现
 ```
-#define FRONTEND_STACK_ALLOC	256
-#define POLL_STACK_ALLOC	FRONTEND_STACK_ALLOC
+#define FRONTEND_STACK_ALLOC  256
+#define POLL_STACK_ALLOC  FRONTEND_STACK_ALLOC
 struct poll_list {
   struct poll_list *next;
   int len;
@@ -118,7 +254,7 @@ struct poll_list {
 
 
 int do_sys_poll(struct pollfd __user *ufds, unsigned int nfds,
-		struct timespec *end_time) {
+    struct timespec *end_time) {
   struct poll_wqueues table;
   int err = -EFAULT, fdcount, len, size;
   long stack_pps[POLL_STACK_ALLOC/sizeof(long)];   /* 32 */
@@ -131,8 +267,9 @@ int do_sys_poll(struct pollfd __user *ufds, unsigned int nfds,
     walk->next = NULL; walk->len = len;
     if (!len)
       break;
-    if (copy_from_user(walk->entries, ufds + nfds-todo, 
-            sizeof(struct pollfd) * walk->len))  /* 将数据从用户空间拷贝至内核空间 */
+    // 将数据从用户空间拷贝至内核空间
+    if (copy_from_user(walk->entries, ufds + nfds-todo,
+            sizeof(struct pollfd) * walk->len)) 
       goto out_fds;
 
     todo -= walk->len;
@@ -149,15 +286,17 @@ int do_sys_poll(struct pollfd __user *ufds, unsigned int nfds,
   }
 
   poll_initwait(&table);
-  fdcount = do_poll(nfds, head, &table, end_time); /* 然后轮流调用所有fd对应的poll */
+  // do_poll的工作和do_select原理相同
+  fdcount = do_poll(nfds, head, &table, end_time);
   poll_freewait(&table);
 
   for (walk = head; walk; walk = walk->next) {
     struct pollfd *fds = walk->entries;
     int j;
 
+    // 将返回数据从内核空间拷贝至用户空间
     for (j = 0; j < walk->len; j++, ufds++)
-      if (__put_user(fds[j].revents, &ufds->revents)) /* 将返回数据从内核空间拷贝至用户空间 */
+      if (__put_user(fds[j].revents, &ufds->revents))
         goto out_fds;
   }
   err = fdcount;
@@ -193,8 +332,8 @@ typedef union epoll_data{
 } epoll_data_t;
 
 struct epoll_event {
-  uint32_t events;	/* Epoll events */
-  epoll_data_t data;	/* User data variable */
+  uint32_t events;  /* Epoll events */
+  epoll_data_t data;  /* User data variable */
 } __EPOLL_PACKED;
 
 #include <sys/epoll.h>
@@ -243,15 +382,15 @@ struct eventpoll {
 `epitem`主要用于存储一个待监控目标文件的相关信息，每当要添加一个待监控目标设备到`eventpoll`里时，实际上就是为该设备创建了一个这样的结构体，并将它挂到了`eventpoll::rbr`红黑树中，例如我们要添加一个socket函数创建的socket文件描述符fd时。
 ```
 struct epitem {
-	union {
+  union {
     struct rb_node rbn;
     struct rcu_head rcu;
-	};
+  };
   struct list_head rdllink;   /* 已经就绪的epitem连接到struct eventpoll::rdllist */
   struct epitem *next;        /* 在拷贝时就绪的epitem连接struct eventpoll::vflist单向链表 */
   struct epoll_filefd ffd;    /* 监听对象的fd和struct file*/
   int nwait;
-  struct list_head pwqlist;   
+  struct list_head pwqlist;
   struct eventpoll *ep;       /* 当前epitem所属eventpoll */
   struct list_head fllink;
   struct wakeup_source __rcu *ws;
@@ -278,23 +417,42 @@ struct eppoll_entry {
 ```
 epoll_ctl(epfd, op, fd, event):
   SYSCALL_DEFINE4(epoll_ctl, epfd, op, fd, event):
-    /* 如果不是删除操作，就将epoll_event拷贝到内核空间 */
+    // 首先判断是否需要拷贝，DEL不需要，其他需要
+    // 如果不是删除操作，就将epoll_event从内核空间拷贝到内核空间
     struct epoll_event epds;
     if(ep_op_has_event(op) &&
        copy_from_user(&epds, event, sizeof(struct epoll_event)))
       goto error_return;
-    struct fd f = fdget(epfd);  /* 返回文件描述符对应的struct file */
+    struct fd f = fdget(epfd);
     struct fd tf = fdget(fd);
-    struct eventpoll *ep = f.file->private_data; /* 获取epfd关联的struct eventpoll对象 */
-    struct epitem *epi = ep_find(ep, tf.file, fd); /* 在红黑树查找是否有对应的事件 */
+    struct eventpoll *ep = f.file->private_data;
 
-    switch(op) {
-      case EPOLL_CTL_ADD: /* 不存在添加 */
-        ep_insert(ep, &epds, tf.file, fd, full_check); break;
-      case EPOLL_CTL_DEL: /* 存在删除 */
-        ep_remove(ep, epi); break;
-      case EPOLL_CTL_MOD: /* 存在修改 */
-        ep_modify(ep, epi, &epds);
+    // 然后在红黑树中查找fd对应的epi，一个fd只有一个epi
+    struct epitem *epi = ep_find(ep, tf.file, fd);
+    // 执行操作
+    switch (op) {
+      case EPOLL_CTL_ADD:
+        if (!epi) { // 不存在添加
+          epds.events |= POLLERR | POLLHUP;
+          error = ep_insert(ep, &epds, tf.file, fd, full_check);
+        } else
+          error = -EEXIST;
+        if (full_check)
+          clear_tfile_check_list();
+          break;
+      case EPOLL_CTL_DEL:
+        if (epi) // 存在删除
+          error = ep_remove(ep, epi);
+        else
+          error = -ENOENT;
+          break;
+      case EPOLL_CTL_MOD:
+        if (epi) { // 存在修改
+          epds.events |= POLLERR | POLLHUP;
+          error = ep_modify(ep, epi, &epds);
+        } else
+          error = -ENOENT;
+          break;
     }
 ```
 为目标文件添加监控事件时，首先要保证当前`struct eventpoll`里面还没有对该目标文件进行监听，如果存在，就返回`-EEXIST`错误。否则说明参数正常，然后先默认设置对目标文件的`POLLERR`和`POLLHUP`监听事件，然后调用`ep_insert`函数。`ep_insert`函数核心的两个工作是：（1）将回调函数加入到要监听的文件文件描述符；（2）将要监听事件插入到的红黑树里面。
@@ -303,14 +461,14 @@ epoll_ctl(epfd, op, fd, event):
 ```
 typedef void (*poll_queue_proc)(struct file *, wait_queue_head_t *, struct poll_table_struct *);
 typedef struct poll_table_struct {
-	poll_queue_proc _qproc;
-	unsigned long _key;
+  poll_queue_proc _qproc;
+  unsigned long _key;
 } poll_table;
 ```
 成员`_key`记录感兴趣的事件，在`epoll`实现中，`_key`被初始化为`~0`，表示监听任何事件。成员`_qproc`是一个回调函数，为了方便处理，`epoll`定义类个包装结构体。
 ```
 struct ep_pqueue {
-	poll_table pt;
+  poll_table pt;
   struct epitem *epi;
 };
 ```
@@ -319,7 +477,7 @@ struct ep_pqueue {
 static int ep_insert(struct eventpoll *ep, struct epoll_event *event,
           struct file *tfile, int fd, int full_check) {
   if (!(epi = kmem_cache_alloc(epi_cache, GFP_KERNEL)))  /* 用slab分配一个struct epitem对象 */
-	  return -ENOMEM;
+    return -ENOMEM;
   INIT_LIST_HEAD(&epi->rdllink);
   INIT_LIST_HEAD(&epi->fllink);
   INIT_LIST_HEAD(&epi->pwqlist);
@@ -378,7 +536,7 @@ epoll_wait(epfd, events, maxevents, timeout):
 首先获取`epfd`关联的`struct fd`对象，然后找到管理的`struct eventpoll`对象，再调用`ep_poll`获取就绪事件。
 ```
 int ep_poll(struct eventpoll *ep, struct epoll_event __user *events,
-		        int maxevents, long timeout) {
+            int maxevents, long timeout) {
   if(timeout > 0) {
     /* 用户态时间转换成内核时间 */
   } else if(timeout == 0) {
@@ -438,6 +596,7 @@ int ep_send_events_proc(struct eventpoll *ep, struct list_head *head, void *priv
   unsigned int revents;
   struct epoll_event __user *uevent;
 
+  // 也需要遍历，但是只是遍历rdllink中的事件
   for (eventcnt = 0, uevent = esed->events;
        !list_empty(head) && eventcnt < esed->maxevents;) {
     epi = list_first_entry(head, struct epitem, rdllink);
@@ -457,7 +616,7 @@ int ep_send_events_proc(struct eventpoll *ep, struct list_head *head, void *priv
         epi->event.events &= EP_PRIVATE_BITS;
       else if (!(epi->event.events & EPOLLET)) { /* 如果是Level Trigger */
         /* 再次加入rdllist，表示调用epoll_wait会再次检查该事件 */
-        list_add_tail(&epi->rdllink, &ep->rdllist); 
+        list_add_tail(&epi->rdllink, &ep->rdllist);
         ep_pm_stay_awake(epi);
       }
     }
@@ -479,6 +638,8 @@ int ep_send_events_proc(struct eventpoll *ep, struct list_head *head, void *priv
 |:-:|:-:|:-:|:-:|
 |操作方式|遍历|遍历|回调|
 |底层实现|数组|链表|红黑树|
-|IO效率|每次线性遍历，O(n)|每次线性遍历，O(n)|调用回调函数，O(1)|
+|IO效率|每次线性遍历，O(n)|每次线性遍历，O(n)|调用回调函数，O(k)|
 |最大连接数|1024(x86)或2048(x64)|无上限|无上限|
 |fd拷贝|每次调用，从用户态烤到内核态|每次调用，从用户态烤到内核态|调用epoll_ctl是拷贝进内存并保存，<br>之后调用epoll_wait只拷贝就绪事件|
+
+1. epoll并不是新添加到系统的黑科技，而是原有系统接口的组合。可以看到，select和poll也利用了虚拟文件系统`poll`机制，只不过仅仅是唤醒do_select或者do_poll进程，而epoll不仅唤醒epoll_wait，在这之前还将就绪的事件添加到就绪的队列，减少了唤醒之后的遍历所有文件描述符检查就绪工作，而是仅仅检查处于就绪链表上的事件，复杂度大大减少。
