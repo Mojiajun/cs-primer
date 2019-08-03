@@ -83,6 +83,7 @@ class new_allocator {
   - `Iterator Traits`用以区分`class iterators`和`non-class iterators`
   - 这个traits机器必须有能力区分它所获得的iterator是(1)`class iterator T`或是(2)`native pointer to T`。利用`partial specialization`(偏特化)可达到目标。
   <img src="./imgs/stl-iterator-traits1.png" width="100%">  
+  
   ```
   // 完整的iterator_traits
   template <class I>
