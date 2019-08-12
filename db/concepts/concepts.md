@@ -489,6 +489,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
     - 联系集：相同类型联系的集合
   - 属性
     - 域：每个属性可能取值的集合
+
 ### 约束
   - 映射基数  
     一个实体通过一个联系集能关联的实体的个数
@@ -498,6 +499,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
     - 多对多
   - 参与约束
   - 码
+
 ### 实体-联系图（E-R图）
   - **分成两部分的矩形**代表实体集
   - **菱形**代表联系集
@@ -613,6 +615,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
         end
     unitl(reuslt不变)
   ```
+
 ### 无损分解
 - 令$r(R)$为一个关系模式，$F$为$r(R)$上的函数依赖集。令$R_1$和$R_2$为R的分解。如果用两个关系模式$r_1(R_1)$和$r_2(R_2)$替代$r(R)$时没有信息损失，则该分解是无损分解
 - 如果以下函数依赖中至少有一个属于$F^*$，则$R_1$和$R_2$为$R$的无损分解：
@@ -630,7 +633,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
 - 散列索引：基于将值平均分布到若干桶
 
 ### B+树  
-<img src="imgs/b+tree.png" width="50%">
+<img src="imgs/b+tree.png">
 
 - 一棵n阶的B树，或为空树，或为满足下列特性的n叉数  
   - 从根到叶结点的每条路径的长度相同
