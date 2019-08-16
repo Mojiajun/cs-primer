@@ -231,7 +231,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
                        from instructor
                        where dept_name = 'Biology');
   ```
-  - `< some`，`<= some``> some`，`>= some`，`<> some`, `< all`，`<= all``> all`，`>= all`，`<> all`
+  - `< some`，`<= some`，`> some`，`>= some`，`<> some`, `< all`，`<= all`，`> all`，`>= all`，`<> all`
   - `> all`比所有的都大
 - 空关系测试
   - `exists`结构在zowie参数的子查询非空时返回`true`
@@ -640,7 +640,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
   - 树中每个非叶结点有$\lceil n/2 \rceil - n$个子树（指针）
   - 叶结点可以包含$\lceil (n-1)/2 \rceil - (n-1)$值
   - 如果根结点不是叶结点，至少有2棵子树
-  - 所有的叶子结点中包含了全部关键字的信息，及指向哈耨这些关键字记录的指针，且叶子结点本身依赖的关键字的大小自小而大顺序链接
+  - 所有的叶子结点中包含了全部关键字的信息，及指向这些关键字记录的指针，且叶子结点本身依赖的关键字的大小自小而大顺序链接
   - 所有的非终端结点可以看成是索引部分，结点中仅含有其子树中的最大（或最小）关键字。
 - 查询
   ```
