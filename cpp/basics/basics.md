@@ -719,7 +719,7 @@
     - 从右值引用（`T&&`）函数参数推断类型
       - 传递右值实参（其实可以传递任意实参类型，见引用折叠）
     - 引用折叠和右值引用参数
-      - 引用折叠：间接创建（只能间接，如类型别名或模板参数，语法不支持直接创建）应用的引用，这些引用会形成“折叠”
+      - 引用折叠：间接创建（只能间接，如类型别名或模板参数，语法不支持直接创建）引用的引用，这些引用会形成“折叠”
         - `X& &`、`X& &&`、`X&& &`都会折叠成`X&`
         - `X&& &&`折叠成`X&&`
       - 如果一个函数参数是一个指向模板类型参数的右值引用（`T&&`），则它可以被绑定到一个左值
@@ -733,16 +733,16 @@
   }
   ```
   - 传入右值，如`auto s2 = std::move(string("bye!"));`
-    - 推断出T的类型为string
+    - 推断出的T的类型为string
     - `remove_reference`用`string`实例化
     - `remove_reference<string>`的`type`成员是`string`
     - move的返回类型是`string&&`
-    - move的函数参数t的类型为s`tring&&`
+    - move的函数参数t的类型为`string&&`
   - 传入左值，如`s1 = string("bye"); auto s2 = std::move(s1);`
-    - 推断出T的类型为`string&`
+    - 推断出的T的类型为`string&`
     - `remove_reference`用`string&`实例化
     - `remove_reference<string&>`的`type`成员是`string`
-    - move的返回类型是string&&
+    - move的返回类型是`string&&`
     - move的函数参数t的类型为`string& &&`，折叠成`string&`
     - `static_cast`将`string&`类型转换为`string&&`
 - ***从一个左值`static_cast`到一个右值引用是允许的***
