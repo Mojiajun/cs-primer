@@ -46,16 +46,16 @@ typedef struct { // 分别表示传入（监听）和返回（就绪）的可读
 
 int core_sys_select((int n, fd_set __user *inp, fd_set __user *outp,
                     fd_set __user *exp, s64 *timeout)) {
-  // 首先在栈空间预分配可以容纳256位的空间，用来存储fd_set_bits数据结构
-  // 该结构中有6个相同长度的成员，所以预分配的栈空间最多可以处理42个描述符
-  // 如果n大于42，就必须在堆空间重新分配空间。
+  // 首先在栈空间预分配可以容纳256个字节的空间，用来存储fd_set_bits数据结构
+  // 该结构中有6个相同长度的成员，所以预分配的栈空间每个成员是42个字节（5个long）
+  // 预分配的栈空间可以处理的最大描述符为320 （5个long型可以存储）
   fd_set_bits fds;
   long stack_fds[SELECT_STACK_ALLOC / sizeof(long)]; // 栈空间预分配256位
   void *bits = stack_fds;
   if (n > max_fds) n = max_fds;
-  unsigned int size = FD_BYTES(n);                   // 存储n个bit需要的字节数
-  if(size > sizeof(stack_fds) / 6) {                 // 6个bitmap
-    bits = kmalloc(6 * size, GFP_KERNEL);            // 重新分配大小
+  unsigned int size = FD_BYTES(n);   // 用long存储n个bit需要的字节数
+  if(size > sizeof(stack_fds) / 6) {  // 栈空间不够用够用
+    bits = kmalloc(6 * size, GFP_KERNEL);  // 重新分配大小
   }
   fds.in      = bits;
   fds.out     = bits +   size;
@@ -160,7 +160,7 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time) {
           } else if (busy_flag & mask)
             can_busy_loop = true;
         }
-      }
+      } // 一个long单位扫描结束
       // 设置返回事件
       if (res_in)
         *rinp = res_in;
@@ -170,7 +170,7 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time) {
         *rexp = res_ex;
       // 把自己重新以抢占的形式调度回来，处理紧急事情，然后立即被调度，继续执行
       cond_resched();
-    }
+    } // 一次扫描结束
     wait->_qproc = NULL;
     // 如果有就绪事件、超时、或者信号中断发生，结束主循环
     if (retval || timed_out || signal_pending(current))
@@ -199,16 +199,16 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time) {
     }
     // 设置当前进程的状态为TASK_INTERRUPTIBLE，可以被信号和wake_up()唤醒的，
     // 当信号到来时，进程会被设置为可运行。
-    if (!poll_schedule_timeout(&table, TASK_INTERRUPTIBLE, to, slack))
+    if (!poll_schedule_timeout(&table, TASK_INTERRUPTIBLE, to, slack)) // 开始睡眠
       timed_out = 1;
-  }
+  } // 主循环
   poll_freewait(&table);
   return retval;
 }
 ```
 
 #### `do_select`原理
-- 通过轮训文件描述符集中的文件描述符，检查描述符是否达到条件，若达到符合的相关条件则返回，否则轮训，但是当轮训的机制虽然是死循环，但是不是一直轮训，当内核轮询一遍文件描述符之后，会调用poll_schedule_timeout函数挂起，等待fd设备或定时器来唤醒自己，然后再继续循环体看看哪些fd可用，以此提高效率。
+- 通过轮训`fd_set`中的文件描述符，检查描述符的状态是否满足条件，若达到符合的相关条件则在返回`fd_set`中标记该描述符。但是当轮训的机制虽然是死循环，但是不是一直轮训，当内核轮询一遍文件描述符之后，会调用`poll_schedule_timeout`函数挂起，等待fd设备或定时器来唤醒自己，然后再继续循环体看看哪些fd可用，以此提高效率。
 
 ### 优缺点
 - 优点
@@ -217,7 +217,7 @@ int do_select(int n, fd_set_bits *fds, struct timespec *end_time) {
   - 单个进程能够监视的文件描述符的数量存在最大限制，通常是1024。当然可以更改数量，但由于`select`采用轮询的方式扫描文件描述符，文件描述符数量越多，性能越差
   - 每次调用`select`，都需要把fd集合从用户空间拷贝到内核空间，在返回时，将返会数组从内核空间拷贝到用户空间
   - `select`返回的是含有整个监视的文件描述符，应用程序需要遍历整个数组才能发现哪些句柄发生了事件
-  - 会（清空）修改传入的`fd_set`数组，每次都需要重新传入
+  - 会（清空）修改传入的`fd_set`数组（地址传递），返回的使用当作返回空间。所以应用程序所以每次都需要重新拷贝，传入副本，以免自己维持的`fd_set`被污染。
 
 ## `poll`实现及其优缺点
 `poll`和`select`类似，没有本质差别，管理多个描述符也是进行轮询，根据描述符的状态进行处理。但是`poll`没有最大描述符数量的限制，并且传入的`fds`在`poll`函数返回后不会清空，活动事件记录在`revents`成员中。
@@ -313,14 +313,14 @@ out_fds:
 ```
 ### 优缺点
 - 优点
-  - `select`会修改描述符，而`poll`不会；
+  - `select`会修改传入的`fd_set`参数，把它当作返回的空间存储返回的数据，而`poll`不会，返回数据和传入的数据不互相干扰；
   - `poll`的描述符类型使用链表实现，没有描述符数量的限制；
 - 缺点
   - 每次调用`poll`，都需要把`pollfd`链表从用户空间拷贝到内核空间，在返回时，将返会数据从内核空间拷贝到用户空间
   - `poll`返回的是含有整个`pollfd`链表，应用程序需要遍历整个链表才能发现哪些句柄发生了事件
 
 ## [`epoll`实现及其优缺点](https://tqr.ink/2017/10/05/implementation-of-epoll/)
-相对于`select`来说，`epoll`没有描述符个数限制，使用一个文件描述符管理多个描述符。调用`epoll_ctl`注册事件的时候将相关数据拷入内核，以后调用`epoll_wait`不会像`select`或`poll`那样，每次都从用户空间拷贝数据到内核空间。并且与`select`或`poll`返回所有事件不同的是，`epoll`返回的是处于就绪的事件的列表。此外`epoll`是基于事件驱动的，在所有添加事件会对应文件建立回调关系，也就是说，当相应的事件发生时会调用这个回调方法，它会将发生的事件添加到就绪链表中。
+相对于`select`来说，`epoll`没有描述符个数限制。调用`epoll_ctl`注册事件的时候将相关数据拷入内核，以后调用`epoll_wait`不会像`select`或`poll`那样，每次都从用户空间拷贝数据到内核空间。并且与`select`或`poll`返回所有事件不同的是，`epoll`返回的是处于就绪的事件的列表。此外`epoll`是基于事件驱动的，在所有添加事件会对应文件建立回调关系，也就是说，当相应的事件发生时会调用这个回调方法，它会将发生的事件添加到就绪链表中。
 
 ### 接口函数
 ```
@@ -362,7 +362,7 @@ SYSCALL_DEFINE1(epoll_create1, int, flags) { /* open an eventpoll file discripto
   return fd;
 }
 ```
-`epoll_create`系统调用完成了`fd`、`file`、`eventpoll`三个对象之间的关联，并将`fd`返回给用户态应用程序。每一个`fd`都会对应一个`struct eventpoll`类型的对象，用户通过`fd`可以将目标需要检测的事件添加到`eventpoll`中，对于`struct eventpoll`类型，其定义为:
+`epoll_create`系统调用完成了`fd`、`file`、`eventpoll`三个对象之间的关联，并将`fd`返回给用户态应用程序。每一个`fd`都会对应一个`struct eventpoll`类型的对象，用户通过`fd`可以将需要检测的目标事件添加到`eventpoll`中，对于`struct eventpoll`类型，其定义为:
 ```
 struct eventpoll {
   spinlock_t lock;
@@ -502,7 +502,7 @@ static int ep_insert(struct eventpoll *ep, struct epoll_event *event,
   ep_rbtree_insert(ep, epi); /* 将epitem加入到红黑树中 */
 
   if ((revents & event->events) && !ep_is_linked(&epi->rdllink)) {
-    list_add_tail(&epi->rdllink, &ep->rdllist);   /* 此时就就绪，加到就绪链表 */
+    list_add_tail(&epi->rdllink, &ep->rdllist);   /* 此时就绪，加到就绪链表 */
     ep_pm_stay_awake(epi);
 
     /* Notify waiting tasks that events are available */
@@ -523,7 +523,7 @@ op_item_poll(epi, pt):
       poll_wait(...):
         p->_qproc(filep, wait_address, p);
 ```
-最后调用`poll_table::_qproc`函数。`epoll`中指向的是`ep_ptable_queue_proc`，执行整个注册过程--（1）设置监听时间`_key`；（2）将`epitem`挂到目标文件的等待队列上，最后返回目标文件当前的状态。此时就就绪，加到就绪链表。最后调用`ep_rbtree_insert`将`epitem`加入到红黑树中。
+最后调用`poll_table::_qproc`函数。`epoll`中指向的是`ep_ptable_queue_proc`，执行整个注册过程--（1）设置监听事件`_key`；（2）将`epitem`挂到目标文件的等待队列上，最后返回目标文件当前的状态。此时就就绪，加到就绪链表。最后调用`ep_rbtree_insert`将`epitem`加入到红黑树中。
 
 #### `epoll_wait`函数实现
 ```
@@ -631,7 +631,7 @@ int ep_send_events_proc(struct eventpoll *ep, struct list_head *head, void *priv
 3. 应用场景  
   - `select`的`timeout`参数精度为1ns，而`poll`和`epoll`为 1ms，因此`select`更加适用于实时性要求比较高的场景。select 可移植性更好，几乎被所有主流平台所支持。 
   - `poll`没有最大描述符数量的限制，如果平台支持并且对实时性要求不高，应该使用`poll`而不是`select`。
-  - `epoll`只需要运行在Linux平台上，有大量的描述符需要同时轮询，并且这些连接最好是长连接。需要同时监控小于1000个描述符，就没有必要使用`epoll`，因为这个应用场景下并不能体现`epoll`的优势。需要监控的描述符状态变化多，而且都是非常短暂的，也没有必要使用`epoll`。因为`epoll`中的所有描述符都存储在内核中，造成每次需要对描述符的状态改变都需要通过`epoll_ctl`进行系统调用，频繁系统调用降低效率。并且`epoll`的描述符存储在内核，不容易调试。
+  - `epoll`只能运行在Linux平台上，有大量的描述符需要同时轮询，并且这些连接最好是长连接。需要同时监控小于1000个描述符，就没有必要使用`epoll`，因为这个应用场景下并不能体现`epoll`的优势。需要监控的描述符状态变化多，而且都是非常短暂的，也没有必要使用`epoll`。因为`epoll`中的所有描述符都存储在内核中，造成每次需要对描述符的状态改变都需要通过`epoll_ctl`进行系统调用，频繁系统调用降低效率。并且`epoll`的描述符存储在内核，不容易调试。
 4. select/poll/epoll区别
 
 |--|select|poll|epoll|
@@ -642,4 +642,4 @@ int ep_send_events_proc(struct eventpoll *ep, struct list_head *head, void *priv
 |最大连接数|1024(x86)或2048(x64)|无上限|无上限|
 |fd拷贝|每次调用，从用户态烤到内核态|每次调用，从用户态烤到内核态|调用epoll_ctl是拷贝进内存并保存，<br>之后调用epoll_wait只拷贝就绪事件|
 
-1. epoll并不是新添加到系统的黑科技，而是原有系统接口的组合。可以看到，select和poll也利用了虚拟文件系统`poll`机制，只不过仅仅是唤醒do_select或者do_poll进程，而epoll不仅唤醒epoll_wait，在这之前还将就绪的事件添加到就绪的队列，减少了唤醒之后的遍历所有文件描述符检查就绪工作，而是仅仅检查处于就绪链表上的事件，复杂度大大减少。
+5. epoll并不是新添加到系统的黑科技，而是原有系统接口的组合。可以看到，select和poll也利用了虚拟文件系统`poll`机制，只不过仅仅是唤醒do_select或者do_poll进程，而epoll不仅唤醒epoll_wait，在这之前还将就绪的事件添加到就绪的队列，减少了唤醒之后的遍历所有文件描述符检查就绪工作，而是仅仅检查处于就绪链表上的事件，复杂度大大减少。
