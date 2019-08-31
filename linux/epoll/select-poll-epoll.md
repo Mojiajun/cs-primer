@@ -276,6 +276,7 @@ int FD_ISSET(int fd, fd_set *set);
 #### `do_select()`
 `do_select()` 用轮询的方式检测监听描述符的状态是否满足条件，若达到符合的相关条件则在返回 `fd_set_bits` 对应的数据域中标记该描述符。虽然该轮训的机制是死循环，但是不是一直轮训，当内核轮询一遍文件描述符没有发现任何事件就绪时，会调用 `poll_schedule_timeout()` 函数挂起，等待相应的文件或定时器来唤醒自己，然后再继续循环体看看哪些文件已经就绪，以此减少对 CPU 的占用。我们先看轮询的过程，然后在分析如何让睡眠等待唤醒
 ```
+/// @file fs/select.c
 399 int do_select(int n, fd_set_bits *fds, struct timespec *end_time)
 400 {
 401     ktime_t expire, *to = NULL;
@@ -1272,6 +1273,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 ```
 继续调用 `ep_scan_ready_list()` 函数
 ```
+/// @file fs/eventpoll.c
 597 static int ep_scan_ready_list(struct eventpoll *ep,
 598                   int (*sproc)(struct eventpoll *,
 599                        struct list_head *, void *),
@@ -1327,6 +1329,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 ```
 需要看一下 `ep_send_events_proc()`的处理操作
 ```
+/// @file fs/eventpoll.c
 1479 static int ep_send_events_proc(struct eventpoll *ep, struct list_head *head,
 1480                    void *priv)
 1481 {   // 调用这占用了互斥锁
