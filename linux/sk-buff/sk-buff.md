@@ -1,20 +1,20 @@
-# Linux网络实现之SKB
+# Linux网络实现之 SKB
 
-## 套接字缓存`sk_buff`结构
-`sk_buff`是Linux内核用于管理网络数据包的缓冲结构，当在其不同网络协议层间传递的时候，只需要附加特定的头部信息，不用拷贝数据，减少了拷贝带来的开销。每次分配都分配两个部分，一个是固定大小的`sk_buff`对象，一个是存储数据的缓冲区。
+## 套接字缓存 sk_buff 结构
+sk_buff 是 Linux 内核用于管理网络数据包的缓冲结构，当其在不同网络协议层之间传递的时候，只需要附加特定的头部信息，不用拷贝数据，减少了拷贝带来的开销。每次分配都分配两个部分，一个是固定大小的 sk_buff 对象，一个是存储数据的缓冲区。
 ```
 /// @file include/linux/skbuff.h 
 485 struct sk_buff {
 486     /* These two members must be first. */
-487     struct sk_buff          *next;                      // 链表中下一个sk_buff
-488     struct sk_buff          *prev;                      // 链表中前一个sk_buff
+487     struct sk_buff          *next;                      // 链表中下一个 sk_buff
+488     struct sk_buff          *prev;                      // 链表中前一个 sk_buff
 489 
 490     union {
 491         ktime_t              tstamp;                    // 到达或离开时间
 492         struct skb_mstamp    skb_mstamp;
 493     };
 494 
-495     struct sock             *sk;                        // 所属sock
+495     struct sock             *sk;                        // 所属 sock
 496     struct net_device       *dev;                       // 到达或离开的硬件
 
 504     char                     cb[48] __aligned(8);       // 控制数据，存放私有数据
@@ -26,7 +26,7 @@
 510     unsigned int             len,                       // 数据长度（包括头部）
 511                              data_len;                  // 数据长度（不包括头部）
 512     __u16                    mac_len,                   // 链路层头部长度
-513                              hdr_len;                   // cloned skb的可写头部长度
+513                              hdr_len;                   // cloned skb 的可写头部长度
 514     union {
 515         __wsum               csum;                      // 校验和
 516         struct {
@@ -37,13 +37,13 @@
 521     __u32                    priority;                  // 数据入队优先级
 522     kmemcheck_bitfield_begin(flags1);
 523     __u8                     ignore_df:1,               // 允许局部碎片
-524                              cloned:1,                  // 头部必须clone
-525                              ip_summed:2,               // IP分组校验和状态
+524                              cloned:1,                  // 头部必须 clone
+525                              ip_summed:2,               // IP 分组校验和状态
 526                              nohdr:1,                   // 不允许修改头部
 527                              nfctinfo:3; // 
 528     __u8                     pkt_type:3,
-529                              fclone:2,                  // skbuff克隆状态
-530                              ipvs_property:1,           // skbuff被ipvs拥有
+529                              fclone:2,                  // skbuff 克隆状态
+530                              ipvs_property:1,           // skbuff 被 ipvs 拥有
 531                              peeked:1,                  // 是否已经查看
 532                              nf_trace:1;
 533     kmemcheck_bitfield_end(flags1);
@@ -57,7 +57,7 @@
 541     struct nf_bridge_info   *nf_bridge;
 542 #endif
 543 
-544     int                      skb_iif;                   // 到达设备的ifindex
+544     int                      skb_iif;                   // 到达设备的 ifindex
 545 
 546     __u32                    hash;                      // 分组的哈希值
 547 
@@ -65,9 +65,9 @@
 549     __u16                    vlan_tci;
 550 
 551 #ifdef CONFIG_NET_SCHED
-552     __u16                    tc_index;                  // 拥塞控制index
+552     __u16                    tc_index;                  // 拥塞控制 index
 553 #ifdef CONFIG_NET_CLS_ACT
-554     __u16                    tc_verd;                   // 拥塞控制verdict */
+554     __u16                    tc_verd;                   // 拥塞控制 verdict */
 555 #endif
 556 #endif
 557 
@@ -117,13 +117,13 @@
 606     sk_buff_data_t           end;
 607     unsigned char           *head,                      // 缓冲头部
 608                             *data;                      // 缓冲数据
-609     unsigned int             truesize;                  // sk_buff的大小加数据的大小
+609     unsigned int             truesize;                  // sk_buff 的大小加数据的大小
 610     atomic_t                 users;                     // 引用计数
 611 };
 ```
 成员详细含义，后面分析
 
-### `skb_shared_info`
+### skb_shared_info
 用于管理碎片式缓冲区，用于支持发送的数据不要求都在一段连续的内存。
 ```
 /// @file include/linux/skbuff.h
@@ -134,31 +134,31 @@
 171 #endif
 
 281 struct skb_shared_info {
-282     unsigned char   nr_frags;
-283     __u8        tx_flags;
-284     unsigned short  gso_size;
+282     unsigned char    nr_frags;
+283     __u8             tx_flags;
+284     unsigned short   gso_size;
 285     /* Warning: this field is not always filled in (UFO)! */
-286     unsigned short  gso_segs;
-287     unsigned short  gso_type;
+286     unsigned short   gso_segs;
+287     unsigned short   gso_type;
 288     struct sk_buff  *frag_list;
 289     struct skb_shared_hwtstamps hwtstamps;
-290     __be32          ip6_frag_id;
+290     __be32           ip6_frag_id;
 291 
 292     /*
 293      * Warning : all fields before dataref are cleared in __alloc_skb()
 294      */
-295     atomic_t    dataref;
+295     atomic_t         dataref;
 296 
 297     /* Intermediate layers must ensure that destructor_arg
 298      * remains valid until skb destructor */
-299     void *      destructor_arg;
+299     void *           destructor_arg;
 300 
 301     /* must be last field, see pskb_expand_head() */
-302     skb_frag_t  frags[MAX_SKB_FRAGS];
+302     skb_frag_t       frags[MAX_SKB_FRAGS];
 303 };
 ```
 
-### `sk_buff`链表
+### sk_buff 链表
 ```
 /// @file include/linux/skbuff.h 
 149 struct sk_buff_head {
@@ -166,8 +166,8 @@
 151     struct sk_buff  *next;
 152     struct sk_buff  *prev;
 153 
-154     __u32       qlen; // 链表中sk_buff的数目
-155     spinlock_t  lock;
+154     __u32            qlen; // 链表中sk_buff的数目
+155     spinlock_t       lock;
 156 };
 ```
 <img src='./imgs/sk-buff-list.png'>
@@ -175,8 +175,8 @@
 
 
 
-### slab分配器设置
-有两个跟`sk_buff`对象分配有关的slab（可以在`/sys/kernel/slab`中找到），他们在`skb_init`中被创建
+### SLAB 分配器设置
+有两个跟 sk_buff 对象分配有关的 SLAB（可以在 /sys/kernel/slab 中找到），他们在 skb_init() 中被创建
 ```
 /// @file net/core/skbuff.c
 3260 void __init skb_init(void)
@@ -194,11 +194,11 @@
 3272                         NULL);
 3273 }
 ```
-`skbuff_head_cache`一次分配一个`sk_buff`对象，多数情况下都是从这里分配一个`sk_buff`对象。`skbuff_fclone_cache`用于处理在分配`sk_buff`就可以预见可能被克隆的情况，一次就分配两个对象和一个引用计数。多分出的一个`sk_buff`对象用于处理将来的克隆操作。引用计数表示分配两个对象被使用的数目，取值0，1，2。
+skbuff_head_cache 一次分配一个 sk_buff 对象，多数情况下都是从这里分配一个 sk_buff 对象。skbuff_fclone_cache 用于处理在分配 sk_buff 就可以预见可能被克隆的情况，一次就分配两个对象和一个引用计数。多分出的一个 sk_buff 对象用于处理将来的克隆操作。引用计数表示分配两个对象被使用的数目，取值 0，1，2。
 
-### 分配SKB
-#### `alloc_skb()`
-`alloc_skb()`是对函数`__alloc_skb()`的包装。从`skbuff_head_cache`中分配对象
+### 分配 SKB
+#### alloc_skb()
+alloc_skb() 是对函数 `__alloc_skb()` 的包装。从 skbuff_head_cache 中分配对象
 ```
 /// @file include/linux/skbuff.h
 730 static inline struct sk_buff *alloc_skb(unsigned int size,
@@ -208,11 +208,11 @@
 734 }
 ```
 参数说明
-- `size`：数据缓冲区的大小，将来用于存放各种头部、数据
-- `priority`：slab分配方式
+- size：数据缓冲区的大小，将来用于存放各种头部、数据
+- priority：SLAB 分配方式
 
 #### `__alloc_skb()`
-`__alloc_skb()`支持从`skbuff_head_cache`或`skbuff_fclone_cache`中分配对象，有`flag`控制。参数`node`用于支持`NUMA`（忽略）
+`__alloc_skb()` 支持从 skbuff_head_cache 或 skbuff_fclone_cache 中分配对象，有 flag 控制。参数 node 用于支持 NUMA（忽略）
 ```
 /// @file net/core/skbuff.c
 200 struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
@@ -224,7 +224,7 @@
 206     u8 *data;
 207     bool pfmemalloc;
 ```
-首先根据`flag`参数找到目的slab分配器。然后从中分配`skb_buff`对象。
+首先根据 flag 参数找到目的 SLAB 分配器。然后从中分配 skb_buff 对象。
 ```
 /// @file net/core/skbuff.c
 209     cache = (flags & SKB_ALLOC_FCLONE)
@@ -259,7 +259,7 @@
 235     size = SKB_WITH_OVERHEAD(ksize(data));
 236     prefetchw(data + size);
 ```
-最后设置`sk_buff`相关成员。首先是几个宏定义
+最后设置 sk_buff 相关成员。首先是几个宏定义
 ```
 /// @file include/linux/skbuff.h
 115 #define SKB_DATA_ALIGN(X)   (((X) + (SMP_CACHE_BYTES - 1)) & \
@@ -271,7 +271,7 @@
 126              SKB_DATA_ALIGN(sizeof(struct sk_buff)) +   \
 127              SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
 ```
-所以到目前位置，`size`变量的值为226行时的结果。在235，从`size`减去了227行加上的部分。
+所以到目前位置，size 变量的值为 226 行时的结果。在 235，从 size 减去了 227 行加上的部分。
 ```
 /// @file net/core/skbuff.c
 238     /*
@@ -282,9 +282,9 @@
 243     memset(skb, 0, offsetof(struct sk_buff, tail)); // sk_buff清零
 244     /* Account for allocated memory : skb + skb->head */
 245     skb->truesize = SKB_TRUESIZE(size); // 分配的内存之和
-246     skb->pfmemalloc = pfmemalloc; // 设置PF_MEMALLOC标志
-247     atomic_set(&skb->users, 1); // 引用计数此时为1
-248     skb->head = data; // 没有任何头部，data为数据缓冲区起始地址;
+246     skb->pfmemalloc = pfmemalloc; // 设置 PF_MEMALLOC 标志
+247     atomic_set(&skb->users, 1); // 引用计数此时为 1
+248     skb->head = data; // 没有任何头部，data 为数据缓冲区起始地址;
 249     skb->data = data; 
 250     skb_reset_tail_pointer(skb); // skb->tail = skb->data;
 251     skb->end = skb->tail + size;
@@ -303,11 +303,11 @@
 264 
 265         kmemcheck_annotate_bitfield(child, flags1);
 266         kmemcheck_annotate_bitfield(child, flags2);
-267         skb->fclone = SKB_FCLONE_ORIG; // 设置已经有克隆的sk_buff预备
+267         skb->fclone = SKB_FCLONE_ORIG; // 设置已经有克隆的 sk_buff 预备
 268         atomic_set(fclone_ref, 1); // 只使用了一个
 269 
 270         child->fclone = SKB_FCLONE_UNAVAILABLE; // 孩子的没有被使用
-271         child->pfmemalloc = pfmemalloc; // 设置PF_MEMALLOC标志
+271         child->pfmemalloc = pfmemalloc; // 设置 PF_MEMALLOC 标志
 272     }
 273 out:
 274     return skb;
@@ -319,10 +319,10 @@
 ```
 <img src='./imgs/skb-alloc.png' width='80%'>
 
-### 释放SKB
+### 释放 SKB
 <img src='./imgs/kfree-skb.png'>
 
-调用`kfree_skb()`释放`sk_buff`对象。只有当引用计数`sk_buff::users`减为1才会回收。
+调用 kfree_skb() 释放 sk_buff 对象。只有当引用计数 sk_buff::users 减为 1 才会回收。
 
 ```
 /// @file net/core/skbuff.c
@@ -338,18 +338,18 @@
 643     __kfree_skb(skb); // 引用计数减为0，回收sk_buff
 644 }
 ```
-`__kfree_skb()`的函数比较简单
+`__kfree_skb()` 函数比较简单
 ```
 /// @file net/core/skbuff.c
 620 void __kfree_skb(struct sk_buff *skb)
 621 {
 622     skb_release_all(skb); // 释放数据缓冲区
-623     kfree_skbmem(skb); // 释放sk_buff对象
+623     kfree_skbmem(skb); // 释放 sk_buff 对象
 624 }
 ```
 
 ### 数据预留和对齐
-#### `skb_reserve()`
+#### skb_reserve()
 在数据缓冲区头部预留一定的空间，通常被用来在数据缓冲区中插入协议首部或者在某个边界上对齐。
 ```
 /// @file include/linux/skbuff.h
@@ -361,8 +361,8 @@
 ```
 <img src='./imgs/skb-reserve.png'>
 
-#### `skb_push()`
-在数据缓冲区的数据载荷
+#### skb_push()
+在数据缓冲区的数据载荷部分预留空间，将来用来存放数据
 ```
 /// @file net/core/skbuff.c
 1317 unsigned char *skb_push(struct sk_buff *skb, unsigned int len)
@@ -376,8 +376,8 @@
 ```
 <img src='./imgs/skb-push.png'>
 
-#### `skb_pull()`
-修改`skb->data`指针，使之下移一定字节，忽略开头一定数据。
+#### skb_pull()
+修改 skb->data 指针，使之下移一定字节，忽略开头一定数据。
 ```
 /// @file net/core/skbuff.c
 1337 unsigned char *skb_pull(struct sk_buff *skb, unsigned int len)
@@ -399,8 +399,8 @@
 ```
 <img src='./imgs/skb-pull.png'>
 
-#### `skb_put()`
-修改`skb->tail`指针，使之下移一定字节。
+#### skb_put()
+修改 skb->tail 指针，使之下移一定字节。
 ```
 /// @file net/core/skbuff.c
 1296 unsigned char *skb_put(struct sk_buff *skb, unsigned int len)
@@ -416,9 +416,9 @@
 ```
 <img src='./imgs/skb-put.png'>
 
-### 克隆和复制SKB
-#### `skb_clone()`
-SKB克隆只拷贝`sk_buff`对象而不拷贝数据缓冲区。当某些”用户“只是修改`sk_buff`对象中的某些字段值时，没有必要将数据缓冲区也拷贝一份，底层可以采用共享同一个数据缓冲区，减少不必要的数据拷贝。克隆必须增加数据缓冲区的引用计数，以免共享数据被提前释放。
+### 克隆和复制 SKB
+#### skb_clone()
+skb_clone() 只拷贝 sk_buff 对象而不拷贝数据缓冲区。当某些“用户”只是修改 sk_buff 对象中的某些字段值时，没有必要将数据缓冲区也拷贝一份，底层可以采用共享同一个数据缓冲区，减少不必要的数据拷贝。克隆必须增加数据缓冲区的引用计数，以免共享数据被提前释放。
 ```
 /// @file net/core/skbuff.c
 880 struct sk_buff *skb_clone(struct sk_buff *skb, gfp_t gfp_mask)
@@ -450,7 +450,7 @@ SKB克隆只拷贝`sk_buff`对象而不拷贝数据缓冲区。当某些”用�
 906     return __skb_clone(n, skb); // 拷贝成员
 907 }
 ```
-调用`__skb_clone`拷贝成员
+调用 `__skb_clone()` 拷贝成员
 ```
 /// @file net/core/skbuff.c
 756 static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
@@ -485,8 +485,8 @@ SKB克隆只拷贝`sk_buff`对象而不拷贝数据缓冲区。当某些”用�
 785 #undef C
 786 }
 ```
-#### `skb_copy()`
-SKB克隆拷贝`sk_buff`对象和数据缓冲区，完成拷贝后新旧SKB没有关联。
+#### skb_copy()
+skb_copy() 会拷贝 sk_buff 对象和数据缓冲区，完成拷贝后新旧 SKB 没有关联。
 ```
 /// @file net/core/skbuff.c
 958 struct sk_buff *skb_copy(const struct sk_buff *skb, gfp_t gfp_mask)
@@ -494,7 +494,7 @@ SKB克隆拷贝`sk_buff`对象和数据缓冲区，完成拷贝后新旧SKB没�
 960     int headerlen = skb_headroom(skb); // 头部（未用空间）长度，不是报文头部总长度
 961     unsigned int size = skb_end_offset(skb) + skb->data_len; // 见后面文件
 962     struct sk_buff *n = __alloc_skb(size, gfp_mask,
-963                     skb_alloc_rx_flag(skb), NUMA_NO_NODE); // 申请SKB
+963                     skb_alloc_rx_flag(skb), NUMA_NO_NODE); // 申请 SKB
 964 
 965     if (!n)
 966         return NULL;
@@ -503,19 +503,19 @@ SKB克隆拷贝`sk_buff`对象和数据缓冲区，完成拷贝后新旧SKB没�
 969     skb_reserve(n, headerlen); // skb->data += headerlen; skb->tail += headerlen
 970     /* Set the tail pointer and length */
 971     skb_put(n, skb->len); // skb->tail += skb->len
-972     // 拷贝[skb->head, skb->tail)的数据到[n->head, n->tail)。并且拷贝skb_shared_info的数据
+972     // 拷贝[skb->head, skb->tail)的数据到[n->head, n->tail)。并且拷贝 skb_shared_info 的数据
 973     if (skb_copy_bits(skb, -headerlen, n->head, headerlen + skb->len))
 974         BUG();
 975 
-976     copy_skb_header(n, skb); // 拷贝sk_buff和skb_shared_info的成员数据
+976     copy_skb_header(n, skb); // 拷贝 sk_buff 和 skb_shared_info 的成员数据
 977     return n;
 978 }
 ```
-961 行`skb_end_offset(skb) + skb->data_len`的含义：首先`skb_end_offset()`返回`skb->end - skb->head`。`skb->data_len`记录的是`skb_shared_info`中管理的数据字节数。
+961 行 skb_end_offset(skb) + skb->data_len 的含义：首先 skb_end_offset() 返回 skb->end - skb->head。skb->data_len 记录的是 skb_shared_info 中管理的数据字节数。
 
 ### 链表管理函数
-#### `skb_queue_head_init()`
-初始化`sk_buff_head`头结点
+#### skb_queue_head_init()
+初始化 sk_buff_head 头结点
 ```
 include/linux/skbuff.h
 1220 static inline void skb_queue_head_init(struct sk_buff_head *list)
@@ -525,14 +525,14 @@ include/linux/skbuff.h
 1224 }
 ```
 
-#### `skb_queue_head()`和`skb_queue_tail()`
+#### skb_queue_head() 和 skb_queue_tail()
 对应于双向链表的头插法和尾插法
 
-#### `skb_dequeue()`和`skb_dequeue_tail()`
-从队列头部或尾部取下一个SKB
+#### skb_dequeue() 和 skb_dequeue_tail()
+从队列头部或尾部取下一个 SKB
 
-#### `skb_queue_purge()`
-清空并回收一个SKB链表
+#### skb_queue_purge()
+清空并回收一个 SKB 链表
 ```
 /// @file net/core/skbuff.c
 2300 void skb_queue_purge(struct sk_buff_head *list)
@@ -543,7 +543,7 @@ include/linux/skbuff.h
 2305 }
 ```
 
-#### `skb_queue_walk`宏定义
+#### skb_queue_walk 宏定义
 遍历链表
 ```
 /// @file include/linux/skbuff.h
@@ -554,8 +554,8 @@ include/linux/skbuff.h
 ```
 
 ### 添加和删除尾部数据
-#### `skb_add_data()`
-拷贝数据到线性区尾部。在拷贝之前调用`skb_put()`，在尾部预留空间，然后将数据拷贝进来
+#### skb_add_data()
+拷贝数据到线性区尾部。在拷贝之前调用 skb_put()，在尾部预留空间，然后将数据拷贝进来
 ```
 /// @file include/linux/skbuff.h
 2387 static inline int skb_add_data(struct sk_buff *skb,
@@ -579,8 +579,8 @@ include/linux/skbuff.h
 2405 }
 ```
 
-#### `skb_trim()`
-删除尾部数据直到满足指定长度，如果目前数据长度不大于指定长度，直接返回。否则，移动`skb-tail`指针
+#### skb_trim()
+删除尾部数据直到满足指定长度，如果目前数据长度不大于指定长度，直接返回。否则，移动 skb->tail 指针
 ```
 /// @file net/core/skbuff.c
 1352 void skb_trim(struct sk_buff *skb, unsigned int len)
@@ -590,8 +590,8 @@ include/linux/skbuff.h
 1356 }
 ```
 
-#### `pskb_trim()`
-`skb_trim()`的拓展，支持处理非线性区域数据。
+#### pskb_trim()
+skb_trim() 的拓展，支持处理非线性区域数据。
 ```
 /// @file include/linux/skbuff.h 
 1962 static inline int __pskb_trim(struct sk_buff *skb, unsigned int len)
@@ -609,8 +609,8 @@ include/linux/skbuff.h
 ```
 <img src='./imgs/pskb-trim.png'>
 
-### 拆分数据`skb_split()`
-`skb_split()`可根据指定长度差分SKB，使得原SKB中的数据长度为指定的长度，剩下的数据保存到另一个SKB中。
+### 拆分数据skb_split()
+skb_split() 可根据指定长度拆分 SKB，使得原 SKB 中的数据长度为指定的长度，剩下的数据保存到另一个 SKB 中。
 ```
 /// @file net/core/skbuff.c
 2480 void skb_split(struct sk_buff *skb, struct sk_buff *skb1, const u32 len)
@@ -624,20 +624,20 @@ include/linux/skbuff.h
 2488         skb_split_no_header(skb, skb1, len, pos);
 2489 }
 ```
-如果拆分数据的长度小于线性数据长度时，调用`skb_split_inside_header()`处理，否则调用`skb_split_no_header`处理拆分`skb_shared_info`中管理的数据
+如果拆分数据的长度小于线性数据长度时，调用 skb_split_inside_header() 处理，否则调用 skb_split_no_header() 处理拆分 skb_shared_info 中管理的数据
 
-#### `skb_split_inside_header()`
+#### skb_split_inside_header()
 ```
 /// @file net/core/skbuff.c
 2412 static inline void skb_split_inside_header(struct sk_buff *skb,
 2413                        struct sk_buff* skb1,
 2414                        const u32 len, const int pos)
-2415 { // pos是原来skb中线性区的数据字节数，len是保存在skb的数据字节数
+2415 { // pos 是原来 skb 中线性区的数据字节数，len 是保存在 skb 的数据字节数
 2416     int i;
-2417     // 移动线性区多于的数据到SKB1，memcpy(skb1->data, skb->data + len, pos - len);
+2417     // 移动线性区多于的数据到 SKB1，memcpy(skb1->data, skb->data + len, pos - len);
 2418     skb_copy_from_linear_data_offset(skb, len, skb_put(skb1, pos - len),
 2419                      pos - len);
-2420     // 将skb数据缓冲区skb_shared_info管理的数据转移给skb1
+2420     // 将skb数据缓冲区 skb_shared_info 管理的数据转移给 skb1
 2421     for (i = 0; i < skb_shinfo(skb)->nr_frags; i++)
 2422         skb_shinfo(skb1)->frags[i] = skb_shinfo(skb)->frags[i];
 2423 
@@ -652,7 +652,7 @@ include/linux/skbuff.h
 ```
 <img src='./imgs/skb-split-inside-header.png'>
 
-#### `skb_split_no_header()`
+#### skb_split_no_header()
 ```
 /// @file net/core/skbuff.c
 2433 static inline void skb_split_no_header(struct sk_buff *skb,
@@ -670,10 +670,10 @@ include/linux/skbuff.h
 2445     for (i = 0; i < nfrags; i++) { // 遍历
 2446         int size = skb_frag_size(&skb_shinfo(skb)->frags[i]);
 2447 
-2448         if (pos + size > len) { // 累计长度超出len的部分，属于skb1
+2448         if (pos + size > len) { // 累计长度超出 len 的部分，属于 skb1
 2449             skb_shinfo(skb1)->frags[k] = skb_shinfo(skb)->frags[i];
 2450 
-2451             if (pos < len) { // 需要分割，一部分属于skb，一部分属于skb1
+2451             if (pos < len) { // 需要分割，一部分属于 skb，一部分属于 skb1
 2460                 skb_frag_ref(skb, i);
 2461                 skb_shinfo(skb1)->frags[0].page_offset += len - pos;
 2462                 skb_frag_size_sub(&skb_shinfo(skb1)->frags[0], len - pos);
@@ -690,8 +690,8 @@ include/linux/skbuff.h
 ```
 <img src='./imgs/skb-split-no-header.png'>
 
-### 重新分配SKB的线性数据区`pskb_expand_head()`
-`pskb_expand_head()`根据指定长度重新扩展`headroom`和`tailroom`。此外，数据缓冲区必须是独有的，也就是`skb->users`为1
+### 重新分配SKB的线性数据区 pskb_expand_head()
+pskb_expand_head() 根据指定长度重新扩展 headroom 和 tailroom。此外，数据缓冲区必须是独有的，也就是 skb->users 为1
 ```
 /// @file net/core/skbuff.c
 1061 int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
@@ -773,8 +773,8 @@ include/linux/skbuff.h
 <img src='./imgs/pskb-expand-head.png'>
 
 ### 其他函数
-#### `skb_headlen()`
-返回线性区[`skb->head`, `skb->end`)中的数据字节数，线性区也叫做头部（`head`或`header`）
+#### skb_headlen()
+返回线性区 [skb->head, skb->end) 中的数据字节数，线性区也叫做头部（head 或 header）
 ```
 /// @file include/linux/skbuff.h
 1447 static inline unsigned int skb_headlen(const struct sk_buff *skb)
@@ -783,7 +783,7 @@ include/linux/skbuff.h
 1450 }
 ```
 
-#### `skb_headroom()`
+#### skb_headroom()
 ```
 /// @file include/linux/skbuff.h
 1629 static inline unsigned int skb_headroom(const struct sk_buff *skb)
