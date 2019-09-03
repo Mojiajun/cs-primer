@@ -1,20 +1,20 @@
 # 虚拟文件系统
-虚拟文件系统（Virtual Filesystem, VFS）是内核的一个组件，用于处理与文件和文件系统相关的所有系统调用。VFS是用户与特定文件系统之间的通用接口。这种抽象简化了文件系统的实现，并提供了更容易的多文件系统集成这样，文件系统的实现是通过使用VFS提供的API完成的，通用硬件和I/O子系统通信部分由VFS处理。
+虚拟文件系统（Virtual Filesystem, VFS）是内核的一个组件，用于处理与文件和文件系统相关的所有系统调用。VFS 是用户与特定文件系统之间的通用接口。这种抽象简化了文件系统的实现，并提供了更容易的多文件系统集成这样，文件系统的实现是通过使用 VFS 提供的 API 完成的，通用硬件和 I/O 子系统通信部分由 VFS 处理。
 
 VFS的基本思想是提供一个可以表示来自任何文件系统的文件的文件模型。文件系统驱动程序负责底层操作。 这样，内核可以创建包含整个系统的单个目录结构。将有一个文件系统作为根，其余文件系统将安装在其各种目录中。
 
 ## 通用文件系统模型
-通用文件系统模型用`super_block`、`inode`、`dentry`和`file`四个对象来表征任何文件系统。
+通用文件系统模型用 super_block 、inode、dentry 和 file 四个对象来表征任何文件系统。
 
-### `super_block`
-`super_block`代表一个具体某个已经挂载的文件系统（每个物理的磁盘、硬盘都有一个文件控制块FCB，super_block相当于FCB的内存映像）。标识一个文件系统的信息，比如：
+### super_block 
+super_block 代表一个具体某个已经挂载的文件系统（每个物理的磁盘、硬盘都有一个文件控制块 FCB，super_block 相当于 FCB 的内存映像）。标识一个文件系统的信息，比如：
 - 依附的物理硬件
-- 索引结点`inode`和数据块`block`的位置
-- `block`的大小（字节）
+- 索引结点 inode 和数据块 block 的位置
+- block 的大小（字节）
 - 文件系统类型
 - 最长文件名
 - 最大文件大小
-- 根目录的`inode`位置
+- 根目录的 inode 位置
 - 支持的操作
 
 ```
@@ -22,7 +22,7 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 1182 struct super_block {
 1183     struct list_head                 s_list;     
 1184     dev_t                            s_dev;              // 设备标识符
-1185     unsigned char                    s_blocksize_bits;   // blocksize的位数
+1185     unsigned char                    s_blocksize_bits;   // blocksize 的位数
 1186     unsigned long                    s_blocksize;        // 块大小（字节）
 1187     loff_t                           s_maxbytes;         // 最大文件大小（字节）
 1188     struct file_system_type         *s_type;             // 文件系统类型
@@ -47,7 +47,7 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 /// ...
 ```
 
-`struct super_operations`中定义了超级块支持的操作，是一组函数指针
+struct super_operations 中定义了超级块支持的操作，是一组函数指针
 ```
 /// @file include/linux/fs.h
 1555 struct super_operations {
@@ -80,14 +80,14 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 1582 };
 ```
 比较重要的操作
-- `write_inode()`, `alloc_inode()`, `destroy_inode()`：写、分配和释放`indoe`
-- `put_super()`：卸载文件系统时由VFS系统调用，用于释放`super_block`
-- `sync_fs()`：文件内容同步
-- `remount_fs()`：当指定新的标识重新挂载文件系统时，VFS调用此函数
-- `statfs()`：获取文件系统状态，返回文件信息
+- write_inode(), alloc_inode(), destroy_inode()：写、分配和释放 inode 
+- put_super()：卸载文件系统时由 VFS 系统调用，用于释放 super_block 
+- sync_fs()：文件内容同步
+- remount_fs()：当指定新的标识重新挂载文件系统时，VFS 调用此函数
+- statfs()：获取文件系统状态，返回文件信息
 
-### `inode`
-索引结点`inode`包含了内核在操作文件或目录时需要的全部信息。对于UNIX风格的文件系统，这些信息可以根据需要从磁盘索引结点直接读入或者写会磁盘。磁盘上的一个索引结点代表一个文件，内核中一个`inode`代表打开的一个文件。
+###  inode 
+索引结点 inode 包含了内核在操作文件或目录时需要的全部信息。对于 UNIX 风格的文件系统，这些信息可以根据需要从磁盘索引结点直接读入或者写会磁盘。磁盘上的一个索引结点代表一个文件，内核中一个 inode 代表打开的一个文件。
 - 文件类型
 - 文件大小
 - 访问权限
@@ -99,15 +99,15 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 506 struct inode {
 507     umode_t                          i_mode;       // 访问权限
 508     unsigned short                   i_opflags;
-509     kuid_t                           i_uid;        // 使用者ID
-510     kgid_t                           i_gid;        // 使用组ID
+509     kuid_t                           i_uid;        // 使用者 ID
+510     kgid_t                           i_gid;        // 使用组 ID
 511     unsigned int                     i_flags;      // 文件系统标志
 518     const struct inode_operations   *i_op;         // 索引结点操作
-519     struct super_block              *i_sb;         // 本inode所属超级块
+519     struct super_block              *i_sb;         // 本 inode 所属超级块
 520     struct address_space            *i_mapping;    // 地址映射相关
 527     unsigned long                    i_ino;        // 索引结点号
 535     union {
-536         const unsigned int           i_nlink;      // 连接到本inode的dentry的数目
+536         const unsigned int           i_nlink;      // 连接到本 inode 的 dentry 的数目
 537         unsigned int               __i_nlink;
 538     };
 539     dev_t                            i_rdev;       // 挂载目录的设备标识符
@@ -117,7 +117,7 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 543     struct timespec                  i_ctime;      // 最后改变时间
 544     spinlock_t                       i_lock;       // 自旋锁
 545     unsigned short                   i_bytes;      // 使用的字节数
-546     unsigned int                     i_blkbits;    // blocksize的位数
+546     unsigned int                     i_blkbits;    // blocksize 的位数
 547     blkcnt_t                         i_blocks;     // 占用块数
 /// ...
 554     unsigned long                    i_state;      // 状文件态
@@ -145,7 +145,7 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 /// ...
 595 };
 ```
-`inode`相关的操作
+inode 相关的操作
 ```
 /// @file include/linux/fs.h
 1507 struct inode_operations {
@@ -185,16 +185,16 @@ VFS的基本思想是提供一个可以表示来自任何文件系统的文件�
 1541 } ____cacheline_aligned;
 ```
 比较重要的操作
-- `lookup()`：用于在指定目录中根据名字查找一个`inode`，该索引结点要对应于指定的文件名
-- `permission`：访问权限
-- `create()`：为传入`dentry`对象创建一个新的索引结点
-- `link()`、`unlink()`：建立连接和删除连接
-- `mkdir()`、`rmdir`：建立目录和删除目录
-- `mknod()`：创建一个设备文件，FIFO或者套接字文件
-- `rename()`：重命名
+- lookup()：用于在指定目录中根据名字查找一个 inode ，该索引结点要对应于指定的文件名
+- permission：访问权限
+- create()：为传入 dentry 对象创建一个新的索引结点
+- link()、unlink()：建立连接和删除连接
+- mkdir()、rmdir()：建立目录和删除目录
+- mknod()：创建一个设备文件，FIFO 或者套接字文件
+- rename()：重命名
 
-### `dentry`
-VFS把目录当作文件对待，但是没有一个具体的磁盘结构与之对应。
+### dentry
+VFS 把目录当作文件对待，但是没有一个具体的磁盘结构与之对应。
 ```
 /// @file include/linux/dcache.h
 108 struct dentry {
@@ -219,7 +219,7 @@ VFS把目录当作文件对待，但是没有一个具体的磁盘结构与之�
 135     } d_u;
 136 };
 ```
-`dentry`相关操作
+dentry 相关操作
 ```
 /// @file include/linux/dcache.h
 150 struct dentry_operations {
@@ -238,18 +238,18 @@ VFS把目录当作文件对待，但是没有一个具体的磁盘结构与之�
 163 } ____cacheline_aligned;
 ```
 重要的操作
-- `d_compare()`：比较两个文件名
-- `d_delete()`：删除目录项
-- `d_release()`：释放目录项
-- `d_prune()`：
-- `d_iput()`：当一个目录项对象丢失了其相关联的`inode`结点时，调用此函数
-- `d_dname()`：延迟目录项生成，在真正需要时生成
+- d_compare()：比较两个文件名
+- d_delete()：删除目录项
+- d_release()：释放目录项
+- d_prune()：
+- d_iput()：当一个目录项对象丢失了其相关联的 inode 结点时，调用此函数
+- d_dname()：延迟目录项生成，在真正需要时生成
 
-### `file`
+### file
 从进程的角度，标识打开的文件。主要维持如下信息
 - 文件读写的标记的位置
 - 打开文件的权限
-- 指向inode的指针
+- 指向 inode 的指针
 
 ```
 /// @file include/linux/fs.h
@@ -310,28 +310,28 @@ VFS把目录当作文件对待，但是没有一个具体的磁盘结构与之�
 1505 };
 ```
 文件常用操作
-- `llseek`：更新偏移位置
-- `read`、`write`、`aio_read`、`aio_write`：文件读写
-- `poll`：进程检查此文件上是否有活动并且（可选）进入睡眠状态直到有活动时唤醒
-- `mmap`：内存映射
-- `open`：文件打开
-- `flush`：文件刷新
-- `release`：当最后一个引用的文件关闭，调用
+- llseek()：更新偏移位置
+- read()、write()、aio_read()、aio_write()：文件读写
+- poll()：进程检查此文件上是否有活动并且（可选）进入睡眠状态直到有活动时唤醒
+- mmap()：内存映射
+- open()：文件打开
+- flush()：文件刷新
+- release()：当最后一个引用的文件关闭，调用
 
 ## 文件系统注册
-这里的文件系统是指可能会被挂载到目录树中的各个实际文件系统，所谓实际文件系统，即是指VFS中的实际操作最终要通过它们来完成而已，并不意味着它们一定要存在于某种特定的存储设备上。分别通过`register_filesystem`和`unregister_filesystem`完成文件系统的注册和移除。注册过程实际上将表示各实际文件系统的`struct file_system_type`数据结构的实例化，然后形成一个链表，内核中用一个名为`file_systems`的全局变量来指向该链表的表头。
+这里的文件系统是指可能会被挂载到目录树中的各个实际文件系统，所谓实际文件系统，即是指 VFS 中的实际操作最终要通过它们来完成而已，并不意味着它们一定要存在于某种特定的存储设备上。分别通过 register_filesystem() 和 unregister_filesystem() 完成文件系统的注册和移除。注册过程实际上将表示各实际文件系统的 file_system_type 数据结构的实例化，然后形成一个链表，内核中用一个名为 file_systems 的全局变量来指向该链表的表头。
 ```
 #include <linux/fs.h>
 extern int register_filesystem(struct file_system_type *);
 extern int unregister_filesystem(struct file_system_type *);
 ```
 
-### `file_system_type`
-Linxu用`file_system_type`来表征一个文件系统的类型
+### file_system_type
+Linxu 用 file_system_type 来表征一个文件系统的类型
 ```
 /// @file include/linux/fs.h
 1768 struct file_system_type {
-1769     const char               *name;          // 名字，比如“ext2”
+1769     const char               *name;          // 名字，比如 “ext2”
 1770     int                       fs_flags;      // 类型标志，在下面定义
 1771 #define FS_REQUIRES_DEV       1 
 1772 #define FS_BINARY_MOUNTDATA   2
@@ -345,7 +345,7 @@ Linxu用`file_system_type`来表征一个文件系统的类型
 1780                const char *, void *);        // 挂载操作
 1781     void (*kill_sb) (struct super_block *);  // 在unmount时清理所属的超级块
 1782     struct module            *owner;
-1783     struct file_system_type  *next;          // 下一个file_system_type
+1783     struct file_system_type  *next;          // 下一个 file_system_type
 1784     struct hlist_head         fs_supers;
 1785 
 1786     struct lock_class_key     s_lock_key;
@@ -359,8 +359,8 @@ Linxu用`file_system_type`来表征一个文件系统的类型
 1794 };
 ```
 
-### `register_filesystem`
-功能是将`fs`对象添加到全局的`file_systems`对象链表中。如果`file_systems`对象链表中有与`fs`同名字的对象，则返回错误的值，否则返回0.
+### register_filesystem()
+功能是将某个 file_system_type 对象添加到全局的 file_systems 对象链表中。如果 file_systems 对象链表中有同名字的对象，则返回错误的值，否则返回 0。
 ```
 /// @file fs/filesystems.c
 46 static struct file_system_type **find_filesystem(const char *name, unsigned len)
@@ -392,7 +392,7 @@ Linxu用`file_system_type`来表征一个文件系统的类型
 85 }
 ```
 
-### `unregister_filesystem`
+### unregister_filesystem()
 ```
 101 int unregister_filesystem(struct file_system_type * fs)
 102 {
