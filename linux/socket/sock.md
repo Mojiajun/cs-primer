@@ -1,7 +1,7 @@
 ### 内核中的传输控制块
 各协议族传输层使用各自的传输控制块存放套接字所要求的信息。比较重要的有IP地址对（远端和本地IP地址）和端口对（远端和本地端口号）
 
-#### `sock_common`
+#### sock_common
 所有传输控制块的共有成员。
 ```
 /// @file include/net/sock.h
@@ -20,15 +20,15 @@
 159      * address on 64bit arches : cf INET_MATCH()
 160      */
 161     union { // IP地址
-162         __addrpair             skc_addrpair;       // IP地址对
+162         __addrpair             skc_addrpair;       // IP 地址对
 163         struct {
-164             __be32             skc_daddr;          // 远端IP地址
-165             __be32             skc_rcv_saddr;      // 本地IP地址
+164             __be32             skc_daddr;          // 远端 IP 地址
+165             __be32             skc_rcv_saddr;      // 本地 IP 地址
 166         };
 167     };
 168     union  { // 查找哈希值
 169         unsigned int           skc_hash;           // 与各种协议查找表一起使用的哈希值
-170         __u16                  skc_u16hashes[2];   // DUP查找表的两个哈希值
+170         __u16                  skc_u16hashes[2];   // DUP 查找表的两个哈希值
 171     };
 172     /* skc_dport && skc_num must be grouped as well */
 173     union {
@@ -40,13 +40,13 @@
 179     };
 180 
 181     unsigned short              skc_family;        // 协议族
-182     volatile unsigned char      skc_state;         // TCP状态
-183     unsigned char               skc_reuse:4;       // 保存SO_REUSEADDR设置
-184     unsigned char               skc_reuseport:4;   // 保存SO_REUSEPORT设置
-185     int                         skc_bound_dev_if;  // 如果不为0，代表绑定的device序列号
+182     volatile unsigned char      skc_state;         // TCP 状态
+183     unsigned char               skc_reuse:4;       // 保存 SO_REUSEADDR 设置
+184     unsigned char               skc_reuseport:4;   // 保存 SO_REUSEPORT 设置
+185     int                         skc_bound_dev_if;  // 如果不为 0，代表绑定的 device 序列号
 186     union {
 187         struct hlist_node       skc_bind_node;     // 用于绑定协议查找表
-188         struct hlist_nulls_node skc_portaddr_node; // 用于绑定UDP的查找表
+188         struct hlist_nulls_node skc_portaddr_node; // 用于绑定 UDP 的查找表
 189     };
 190     struct proto               *skc_prot;          // 绑定各自的接口（函数）
 191 #ifdef CONFIG_NET_NS
@@ -54,8 +54,8 @@
 193 #endif
 194 
 195 #if IS_ENABLED(CONFIG_IPV6)
-196     struct in6_addr             skc_v6_daddr;      // IPv6原端地址
-197     struct in6_addr             skc_v6_rcv_saddr;  // IPv6本地地址
+196     struct in6_addr             skc_v6_daddr;      // IPv6 远端地址
+197     struct in6_addr             skc_v6_rcv_saddr;  // IPv6 本地地址
 198 #endif
 199 
 200     /*
@@ -69,7 +69,7 @@
 208         struct hlist_node       skc_node;
 209         struct hlist_nulls_node skc_nulls_node;
 210     };
-211     int                         skc_tx_queue_mapping; // tx queue值？？
+211     int                         skc_tx_queue_mapping; // tx queue 值？？
 212     atomic_t                    skc_refcnt;           // 引用计数
 213     /* private: */
 214     int                         skc_dontcopy_end[0];
@@ -77,7 +77,7 @@
 216 };
 ```
 
-#### `sock`
+#### sock
 比较通用的网络层描述块，构成传输控制块的基础，与具体的协议无关。添加了接收队列和发送队列，接受队列和发送队列的大小。以及状态变化、可读、可写等的回调
 ```
 /// @file include/net/sock.h
@@ -185,8 +185,8 @@
 388     int                       sk_gso_type;
 389     unsigned int              sk_gso_max_size;
 390     u16                       sk_gso_max_segs;
-391     int                       sk_rcvlowat;        // 接收低水位 SO_RCVLOWAT设置
-392     unsigned long             sk_lingertime;      // SO_LINGER设置
+391     int                       sk_rcvlowat;        // 接收低水位 SO_RCVLOWAT 设置
+392     unsigned long             sk_lingertime;      // SO_LINGER 设置
 393     struct sk_buff_head       sk_error_queue;     // 错误队列
 394     struct proto             *sk_prot_creator;
 395     rwlock_t                  sk_callback_lock;
@@ -194,14 +194,14 @@
 397                               sk_err_soft;
 398     unsigned short            sk_ack_backlog;     // 当前已建立的连接数
 399     unsigned short            sk_max_ack_backlog; // 已建立连接数的上限
-400     __u32                     sk_priority;        // SO_PRIORITY设置
+400     __u32                     sk_priority;        // SO_PRIORITY 设置
 401 #if IS_ENABLED(CONFIG_CGROUP_NET_PRIO)
 402     __u32                     sk_cgrp_prioidx;
 403 #endif
 404     struct pid               *sk_peer_pid;
 405     const struct cred        *sk_peer_cred;
-406     long                      sk_rcvtimeo;        // 接收超时，SO_RCVTIMEO设置
-407     long                      sk_sndtimeo;        // 发送超时，SO_SNDTIMEO设置
+406     long                      sk_rcvtimeo;        // 接收超时，SO_RCVTIMEO 设置
+407     long                      sk_sndtimeo;        // 发送超时，SO_SNDTIMEO 设置
 408     void                     *sk_protinfo;        // 存放私有数据
 409     struct timer_list         sk_timer;           // 计时器链表
 410     ktime_t                   sk_stamp;
@@ -209,7 +209,7 @@
 412     void                     *sk_user_data;
 413     struct page_frag          sk_frag;
 414     struct sk_buff           *sk_send_head;      // 发送队列
-415     __s32                     sk_peek_off;       // 当前peek_offset值
+415     __s32                     sk_peek_off;       // 当前 peek_offset 值
 416     int                       sk_write_pending;  // 标识有数据即将写入套接字
 417 #ifdef CONFIG_SECURITY
 418     void                     *sk_security;
@@ -223,12 +223,12 @@
 426     void            (*sk_error_report)(struct sock *sk); // 出错回调
 427     int             (*sk_backlog_rcv)(struct sock *sk,
 428                           struct sk_buff *skb);          // 后备队列处理回调
-429     void            (*sk_destruct)(struct sock *sk);     // 析构函数回调，释放sock时调用
+429     void            (*sk_destruct)(struct sock *sk);     // 析构函数回调，释放 sock 时调用
 430 };
 ```
 
-#### `inet_sock`
-比较通用的IPv4协议簇描述块，包含IPv4协议簇基础传输层，即UDP、TCP以及RAW控制块共有的信息。添加了IPv4协议专用的属性，比如TTL
+#### inet_sock
+比较通用的 IPv4 协议簇描述块，包含 IPv4 协议簇基础传输层，即 UDP、TCP 以及 RAW 控制块共有的信息。添加了 IPv4 协议专用的属性，比如 TTL
 ```
 /// @file include/net/inet_sock.h
 132 /** struct inet_sock - representation of INET sockets
@@ -240,26 +240,26 @@
 156     struct ipv6_pinfo           *pinet6;
 157 #endif
 158     /* Socket demultiplex comparisons on incoming packets. */
-159 #define inet_daddr               sk.__sk_common.skc_daddr     // 绑定的目的IP地址
-160 #define inet_rcv_saddr           sk.__sk_common.skc_rcv_saddr // 绑定的本地IP地址
+159 #define inet_daddr               sk.__sk_common.skc_daddr     // 绑定的目的 IP 地址
+160 #define inet_rcv_saddr           sk.__sk_common.skc_rcv_saddr // 绑定的本地 IP 地址
 161 #define inet_dport               sk.__sk_common.skc_dport     // 目的端口号
 162 #define inet_num                 sk.__sk_common.skc_num       // 本地端口号
 163 
-164     __be32                       inet_saddr;           // 发送的实际本地IP地址
-165     __s16                        uc_ttl;               // 单播TTL，默认-1        
+164     __be32                       inet_saddr;           // 发送的实际本地 IP 地址
+165     __s16                        uc_ttl;               // 单播 TTL，默认-1        
 166     __u16                        cmsg_flags;
 167     __be16                       inet_sport;           // 发送的实际本地端口号
-168     __u16                        inet_id;              // IP首部标识ID
+168     __u16                        inet_id;              // IP 首部标识 ID
 169 
-170     struct ip_options_rcu __rcu *inet_opt;             // IP首部的选项指针
+170     struct ip_options_rcu __rcu *inet_opt;             // IP 首部的选项指针
 171     int                          rx_dst_ifindex;
-172     __u8                         tos;                  // IP首部TOS（区分服务）
+172     __u8                         tos;                  // IP 首部 TOS（区分服务）
 173     __u8                         min_ttl;
-174     __u8                         mc_ttl;               // 多播TTL
+174     __u8                         mc_ttl;               // 多播 TTL
 175     __u8                         pmtudisc;
-176     __u8                         recverr:1,            // IP_RECVERR设置
-177                                  is_icsk:1,            // 是否是inet_connection_sock
-178                                  freebind:1,           // IP_FREEBIND设置
+176     __u8                         recverr:1,            // IP_RECVERR 设置
+177                                  is_icsk:1,            // 是否是 inet_connection_sock
+178                                  freebind:1,           // IP_FREEBIND设 置
 179                                  hdrincl:1,
 180                                  mc_loop:1,            // 组播是否发向回路
 181                                  transparent:1,
@@ -275,8 +275,8 @@
 191 
 ```
 
-#### `inet_connection_sock`
-面向连接特性的描述块，在`inet_sock`的基础上增加了连接、确认和重传等成员
+#### inet_connection_sock
+面向连接特性的描述块，在 inet_sock 的基础上增加了连接、确认和重传等成员
 ```
 /// @file include/net/inet_connection_sock.h 
  68 /** inet_connection_sock - INET connection oriented sock
@@ -288,12 +288,12 @@
  92     struct inet_bind_bucket   *icsk_bind_hash;    // 执行绑定的本地端口信息
  93     unsigned long              icsk_timeout;      // 超时重传时间
  94     struct timer_list          icsk_retransmit_timer; // 超时重传计时器
- 95     struct timer_list          icsk_delack_timer; // 延迟发送ACK计时器
- 96     __u32                      icsk_rto;          // 超时重传时间，处置为TCP_TIMEOUT_INIT
+ 95     struct timer_list          icsk_delack_timer; // 延迟发送 ACK 计时器
+ 96     __u32                      icsk_rto;          // 超时重传时间，处置为 TCP_TIMEOUT_INIT
  97     __u32                      icsk_pmtu_cookie;  // 最后一次更新的最大传输单元（MTU）
  98     const struct tcp_congestion_ops          *icsk_ca_ops; // 指向某个拥塞控制算法
- 99     const struct inet_connection_sock_af_ops *icsk_af_ops; // TCP的一个操作接口集
-100     unsigned int          (*icsk_sync_mss)(struct sock *sk, u32 pmtu); // 根据PMTU同步本地MSS函数指针
+ 99     const struct inet_connection_sock_af_ops *icsk_af_ops; // TCP 的一个操作接口集
+100     unsigned int          (*icsk_sync_mss)(struct sock *sk, u32 pmtu); // 根据 PMTU 同步本地 MSS 函数指针
 101     __u8                       icsk_ca_state;     // 拥塞控制状态
 102     __u8                       icsk_retransmits;  // 超时重传次数
 103     __u8                       icsk_pending;      // 标识预定的定时器事件
@@ -302,9 +302,9 @@
                                              // ICSK_TIME_PROBE0：零窗口探测计时器
                                              // ICSK_TIME_KEEPOPEN：保活计时器
 104     __u8                       icsk_backoff;      // 计时器的指数退避算法的指数
-105     __u8                       icsk_syn_retries;  // 最多重传SYN的次数，TCP_SYNCNT设置
-106     __u8                       icsk_probes_out;   // 零窗口探测或保活时发送但为确认的TCP分节数
-107     __u16                      icsk_ext_hdr_len;  // IP首部选项长度
+105     __u8                       icsk_syn_retries;  // 最多重传 SYN 的次数，TCP_SYNCNT 设置
+106     __u8                       icsk_probes_out;   // 零窗口探测或保活时发送但为确认的 TCP 分节数
+107     __u16                      icsk_ext_hdr_len;  // IP 首部选项长度
 108     struct { // 延迟确认控制块
 109         __u8                   pending;           // ACK状态
                                              // ICSK_ACK_SCHED：
@@ -314,11 +314,11 @@
 110         __u8                   quick;             // ？？
 111         __u8                   pingpong;          // 快速确认（0）或延迟确认（1）
 112         __u8                   blocked;  
-113         __u32                  ato;               // 用来计算延迟ACK的估值
-114         unsigned long          timeout;           // 当前的延迟ACK超时时间
+113         __u32                  ato;               // 用来计算延迟 ACK 的估值
+114         unsigned long          timeout;           // 当前的延迟 ACK 超时时间
 115         __u32                  lrcvtime;          // 最后一次收到数据的时间
 116         __u16                  last_seg_size;     // 最后收到的数据的长度
-117         __u16                  rcv_mss;           // 由最近接收到的段计算出的MSS，用来确定是否延迟ACK
+117         __u16                  rcv_mss;           // 由最近接收到的段计算出的 MSS，用来确定是否延迟 ACK
 118     } icsk_ack; 
 119     struct { // 最大传输单元（MTU）发现相关的数据
 120         int                    enabled;           // 是否启用
@@ -336,7 +336,7 @@
 132 };
 ```
 
-#### `tcp_sock`
+#### tcp_sock
 ```
 /// @file include/linux/tcp.h
 138 struct tcp_sock {
@@ -345,14 +345,14 @@
 141     u16 tcp_header_len; // 首部大小
 142     u16 xmit_size_goal_segs; /* Goal for segmenting output packets */
 148     __be32  pred_flags;
-155     u32 rcv_nxt;    // 期待收到的下一个TCP序号
+155     u32 rcv_nxt;    // 期待收到的下一个 TCP 序号
 156     u32 copied_seq; /* Head of yet unread data      */
 157     u32 rcv_wup;    /* rcv_nxt on last window update sent   */
-158     u32 snd_nxt;    // 等待发送的下一个TCP序号
+158     u32 snd_nxt;    // 等待发送的下一个 TCP 序号
 159 
 160     u32 snd_una;    // 最早一个未确认的序号
-161     u32 snd_sml;    // 最近发送的小包的最后一个字节序号，用于判断是否启用Nagle算法
-162     u32 rcv_tstamp; // 最近一次收到ACK的时间，用于TCP保活
+161     u32 snd_sml;    // 最近发送的小包的最后一个字节序号，用于判断是否启用 Nagle 算法
+162     u32 rcv_tstamp; // 最近一次收到 ACK 的时间，用于 TCP 保活
 163     u32 lsndtime;   // 最近一次发送数据的时间，用于拥塞窗口的设置
 164 
 165     u32 tsoffset;   /* timestamp offset */
@@ -365,7 +365,7 @@
 172         struct sk_buff_head prequeue;
 173         struct task_struct  *task;
 174         struct iovec        *iov;
-175         int         memory; // prequeue当前消耗的内存
+175         int         memory; // prequeue 当前消耗的内存
 176         int         len; // 用户缓存大小
 177 #ifdef CONFIG_NET_DMA
 178         /* members for async copy */
@@ -376,10 +376,10 @@
 183 #endif
 184     } ucopy;
 185 
-186     u32 snd_wl1;    // 记录更新发送窗口的那个ACK的序号，用于判断是否需要更新窗口大小
+186     u32 snd_wl1;    // 记录更新发送窗口的那个 ACK 的序号，用于判断是否需要更新窗口大小
 187     u32 snd_wnd;    // 接收方提供的接收窗口大小
 188     u32 max_window; // 接收方通告过的接收窗口值最大值
-189     u32 mss_cache;  // 发送方当前有效MSS，SOL_TCP设置
+189     u32 mss_cache;  // 发送方当前有效 MSS，SOL_TCP 设置
 190 
 191     u32 window_clamp;   // 滑动窗口最大值
 192     u32 rcv_ssthresh;   // 当前接收窗口大小的阈值
@@ -527,7 +527,7 @@
 334 };
 ```
 
-#### `upd_sock`
+#### upd_sock
 ```
 /// @file include/linux/udp.h
 42 struct udp_sock {
@@ -565,7 +565,7 @@
 74 };
 ```
 
-#### `inet_timewait_sock`
+#### inet_timewait_sock
 ```
 /// @file include/net/inet_timewait_sock.h
  97 /*
@@ -618,7 +618,7 @@
 144 };
 ```
 
-#### `request_sock`
+#### request_sock
 ```
 /// @file include/net/request_sock.h
 48 /* struct request_sock - mini sock to represent a connection request
@@ -642,7 +642,7 @@
 66 };
 ```
 
-#### `inet_request_sock`
+#### inet_request_sock
 ```
 /// @file include/net/inet_sock.h
 71 struct inet_request_sock {
@@ -671,7 +671,7 @@
 94 };
 ```
 
-#### `tcp_resuqst_sock`
+#### tcp_resuqst_sock
 ```
 /// @file include/linux/tcp.h
 117 struct tcp_request_sock {
@@ -691,7 +691,7 @@
 131 };
 ```
 
-#### `tcp_timewait_sock`
+#### tcp_timewait_sock
 ```
 /// @file include/linux/tcp.h
 352 struct tcp_timewait_sock {
@@ -708,7 +708,7 @@
 363 };
 ```
 
-#### `listen_sock`
+#### listen_sock
 ```
 /// @file include/net/request_sock.h
  95 struct listen_sock {

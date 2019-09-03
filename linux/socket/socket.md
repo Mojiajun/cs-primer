@@ -1,6 +1,6 @@
-# Linux网络实现之TCP
+# Linux网络实现之 TCP
 
-## socket结构
+## socket 结构
 套接字代表一条端到端通信的一端，存储了该端所有与通信有关的信息。这些信息包括：使用的协议、套接字状态、源地址、目的地址、到达的连接、数据缓冲和可选标志。
 ```
 /// @file inlude/linux/net.h
@@ -19,9 +19,9 @@
 117     struct sock     *sk;
 118     const struct proto_ops  *ops;
 119 };
-每个成员的含义如下：
 ```
-- `state`表征套接字的状态（不同于TCP连接的状态），其状态如下：
+每个成员的含义如下：
+- state 表征套接字的状态（不同于 TCP 连接的状态），其状态如下：
 ```
 /// @file inlcude/uapi/linux/net.h
 47 typedef enum {
@@ -32,9 +32,9 @@
 52     SS_DISCONNECTING  // 正在断开连接
 53 } socket_state;
 ```
-- `type`表征套接字的类型，比如常用的`SOCK_STREAM`（TCP）和`SOCK_DGRAM`（UDP）等
-- `flags`表征套接字的选项
-- `wq`指向等待队列
+- type 表征套接字的类型，比如常用的 `SOCK_STREAM`（TCP）和 `SOCK_DGRAM`（UDP）等
+- flags 表征套接字的选项
+- wq 指向等待队列
 ```
 /// @file inlcude/linux/net.h
 88 struct socket_wq {
@@ -43,7 +43,7 @@
 92     struct rcu_head     rcu; // Read-Copy Update
 93 } ____cacheline_aligned_in_smp;
 ```
-`wait`是头结点，封装自旋锁和任务队列头部
+wait 是头结点，封装了自旋锁和任务队列链表
 ```
 /// @file include/linux/wait.h
 35 struct __wait_queue_head {
@@ -52,14 +52,14 @@
 38 };
 39 typedef struct __wait_queue_head wait_queue_head_t;
 ```
-`rcu`是读拷贝修改(Read-Copy Update, RCU)，对于被RCU保护的共享数据结构，读者不需要获得任何锁就可以访问它，但写者在访问它时首先拷贝一个副本，然后对副本进行修改，最后使用一个回调（callback）机制在适当的时机把指向原来数据的指针重新指向新的被修改的数据。这个时机就是所有引用该数据的CPU都退出对共享数据的操作。
-- `file`指向与该套接字相关联的`struct file`对象
-- `sk`指向`struct sock`对象。
-  - 用户空间每创建一个套接字，内核会有`struct socket`和`struck sock`对象与之关联。
-  - 为了方便区分，`sock`总是指向`struct socket`对象，`sk`总是指向`struct sock`对象。
-  - 两个对象是共生关系，`socket::sk`指向`sock`，而`sock::sk_socket`指向`socket`。
+rcu 是读拷贝修改(Read-Copy Update, RCU)，对于被 RCU 保护的共享数据结构，读者不需要获得任何锁就可以访问它，但写者在访问它时首先拷贝一个副本，然后对副本进行修改，最后使用一个回调（callback）机制在适当的时机把指向原来数据的指针重新指向新的被修改的数据。这个时机就是所有引用该数据的 CPU 都退出对共享数据的操作。
+- file 指向与该套接字相关联的 file 对象
+- sk 指向 sock 对象。
+  - 用户空间每创建一个套接字，内核会有 socket 和 sock 对象与之关联。
+  - 为了方便区分，名为 sock 的指针总是指向 socket 对象，名为 sk 的指针总是指向 sock 对象。
+  - 两个对象是共生关系，socket::sk 指向 sock 对象，而 sock::sk_socket 指向 socket 对象。
 
-- `ops`套接字操作函数，用来将套接字系统调用映射到相应的传输层实现。结构体`proto_ops`除了一个`int`型成员`family`表示协议族，一个`mudule`结构体的成员`owner`表示所属模块外，其余都是函数指针，因此整个`proto_ops`结构可以看作是一张套接字系统调用到传输层函数的跳转表。
+- ops 套接字操作函数，用来将套接字系统调用映射到相应的传输层实现。proto_ops 结构体除了一个 `int` 型成员 family 表示协议族，一个 mudule 类型的成员 owner 表示所属模块外，其余都是函数指针，因此整个 proto_ops 对象可以看作是一张套接字系统调用到传输层函数的跳转表。
 ```
 /// @file inlcude/linux/net.h
 128 struct proto_ops {
@@ -105,25 +105,25 @@
 ```
 <img src='./imgs/proto_ops.png'>
 
-## `struct socket`和`struct sock`关系
+## socket 和 sock 关系
 
-### BSD协议栈
+### BSD 协议栈
 <img src='./imgs/bsd-network-stack.png'>
 
-### 各种`sock`之间的关系
+### 各种 sock 结构之间的关系
 <img src='./imgs/socks.png'>
 
-这种关系特别像C++中的继承。用一个`struct sock`指针可以指向`struct tcp_sock`或者`struct udp_sock`对象，通过类型转换，可以将`struct sock`对象向”继承“方向转型为`struct inet_sock`、`struct inet_connection_sock`和`struct tcp_sock`等。
+这种关系特别像 C++ 中的继承。用一个 sock 指针可以指向 tcp_sock 或者 udp_sock 对象，通过类型转换，可以将指向 sock 对象的指针向“继承”方向提升为指向 inet_sock 、inet_connection_sock 或 tcp_sock 等对象。
 
-### `socket`和`sock`的关系
+### socket 和 sock 的关系
 <img src='./imgs/socket-tcp-or-udp-sock.png'>
 
-`struct socket`是统一的接口，用于和`struct file`对象绑定。其`struct socket::sk`成员可以指向具体的套接字（比如`struct tcp_sock`或`struct udp_sock`）
+socket 是统一的接口，用于和 file 对象绑定。其 socket::sk 成员可以指向具体的套接字（比如 tcp_sock 或 udp_sock）
 
 ## 套接字文件
 <img src='./imgs/vfs.png'>
 
-Linux一切皆文件。套接字也是一种文件，是由类型为`sock_fs_type`的伪文件系统（pseudo filesystem）负责创建、打开和关闭以及读写。可其他文件一样，用户空间使用的套接字是文件描述符，是数组`struct file`的索引值。`struct file`是进程对打开文件的抽象表示，`struct inode`是虚拟文件系统对打开文件的表示。不同进程打开同一个文件会有不同`struct file`对象，但是都指向同一个`struct inode`对象。`struct file`记录了本进程文件读写的标记的位置，打开文件的权限等。每个打开的文件都有一个`struct inode`，伪文件系统`sock_fs_type`管理`inode`的分配和释放（分别调用`alloc_inode`和`destroy_inode`，其底层分别调用`sock_alloc_inode`和`sock_destroy_inode`）。当创建一个套接字，就会分配一个`struct socket_alloc`，里面包含了一个`struct inode`对象以及`struct socket`对象。
+Linux 一切皆文件。套接字也是一种文件，是由类型为 sock_fs_type 的伪文件系统（pseudo filesystem）负责创建、打开和关闭以及读写。和其他文件一样，用户空间使用的套接字是文件描述符，是 fdtable::fd 数组的索引值。file 是进程对打开文件的抽象表示，inode 是虚拟文件系统对打开文件的表示。不同进程打开同一个文件会有不同 file 对象，但是都指向同一个 inode 对象（？验证）。file 对象记录了本进程文件读写的标记的位置、打开文件的权限等。当创建一个 socket 对象的时候，会分配一个 socket_alloc 对象，里面包含了一个 inode 对象以及 socket 对象。可以看到和普通文件一样，每个打开的套接字文件都有一个 inode。伪文件系统 sock_fs_type 管理 inode 的分配和释放（分别调用alloc_inode() 和 destroy_inode()，其底层分别调用 sock_alloc_inode() 和 sock_destroy_inode() 函数）。
 ```
 struct socket_alloc {
 /// @file include/net/sock.h
@@ -134,19 +134,20 @@ struct socket_alloc {
 ```
 
 ## 相关（全局）变量
-### slab分配器
-用`cat /proc/slabinfo`可以查看系统创建的slab分配器。和套接字有关的有如下几个（不考虑IPv6）
-- `sock_inode_cache`：分配`strict socket_alloc`对象，由全局变量`sock_inode_cachep`指向
-- `TCP`：分配`struct tcp_sock`对象，由全局变量`tcp_prot.slab`指向
-- `request_sock_TCP`：分配`struct tcp_request_sock`对象，由全局变量`tcp_prot->rsk_prot->slab`指向
-- `tw_sock_TCP`：分配`struct tcp_timewait_sock`对象，由全局变量`tcp_prot->twsk_prot->slab`指向
-- `UDP`：分配`struct udp_sock`对象，由全局变量`udp_prot->slab`指向（`/sys/kernel/slab`存在）
-- `RAW`：分配`struct raw_sock`对象，由全局变量`raw_prot.slab`指向
+### SLAB 分配器
+用 `cat /proc/slabinfo` 可以查看系统创建的 SLAB 分配器。和套接字有关的有如下几个（不考虑 IPv6）
+- sock_inode_cache：分配 socket_alloc 对象，由全局指针变量 sock_inode_cachep 指向
+- TCP：分配 tcp_sock 对象，由全局变量 tcp_prot.slab 指向
+- request_sock_TCP：分配 tcp_request_sock 对象，由全局变量 tcp_prot.rsk_prot->slab 指向
+- tw_sock_TCP：分配 tcp_timewait_sock 对象，由全局变量 tcp_prot.twsk_prot->slab 指向
+- UDP：分配 struct udp_sock 对象，由全局变量 udp_prot.slab 指向（在 /sys/kernel/slab 可以找到）
+- RAW：分配 struct raw_sock 对象，由全局变量 raw_prot.slab 指向
 
-用于分配`struct tcp_sock`、`struct tcp_request_sock`和`struct tcp_timewait_sock`对象的slab分配器在`inet_init::proto_register(&tcp_prot, 1)`中完成（`net/ipv4/af_inet.c 1703`）。`proto_register`主要完成slab分配器的创建
-1. 创建分配`struct tcp_sock`的slab，名字为`TCP`，用`tcp_prot->slab`指向。
+用于分配 tcp_sock、tcp_request_sock 和 tcp_timewait_sock 对象的 SLAB 分配器在 inet_init::proto_register(&tcp_prot, 1) 中完成（net/ipv4/af_inet.c:1703）。proto_register() 主要完成上面分析的 SLAB 分配器的创建
+1. 创建分配 tcp_sock 的 SLAB，名字为 TCP ，用 tcp_prot.slab 指向。
 ```
 /// @file net/core/sock.c
+/// prot 指向 tcp_prot 全局变量
 2797 int proto_register(struct proto *prot, int alloc_slab)
 2798 {
 2799     if (alloc_slab) {
@@ -154,7 +155,7 @@ struct socket_alloc {
 2801                     SLAB_HWCACHE_ALIGN | prot->slab_flags,
 2802                     NULL);
 ```
-2. 创建分配`tcp_request_sock`的slab，名字为`request_sock_TCP`，用`tcp_prot->rsk_prot->slab`指向
+2. 创建分配 tcp_request_sock 的 SLAB，名字为 request_sock_TCP ，用 tcp_prot.rsk_prot->slab 指向
 ```
 /// @file net/core/sock.c
 2810         if (prot->rsk_prot != NULL) {
@@ -167,7 +168,7 @@ struct socket_alloc {
 2817                                  SLAB_HWCACHE_ALIGN, NULL);
 ```
 
-3. 创建分配`tcp_timewait_sock`的slab，名字为`tw_sock_TCP`，用`tcp_prot->twsk_prot->slab`指向
+1. 创建分配 tcp_timewait_sock 的 SLAB，名字为 tw_sock_TCP，用 tcp_prot.twsk_prot->slab 指向
 ```
 /// @file net/core/sock.c
 2826         if (prot->twsk_prot != NULL) {
@@ -185,8 +186,8 @@ struct socket_alloc {
 2838                           NULL);
 ```
 
-### `net_families`数组
-最初的赋值操作在`inet_init::sock_register(&inet_family_ops)`中完成（`net/ipv4/af_inet.c 1703`）。`inet_family_ops`是个全局变量，定义如下
+### net_families 数组
+最初的赋值操作在函数 inet_init::sock_register(&inet_family_ops) 中完成（net/ipv4/af_inet.c:1703）。inet_family_ops 是个全局变量，定义如下
 ```
 /// net/ipv4/af_inet.c 991
 991 static const struct net_proto_family inet_family_ops = {
@@ -195,7 +196,7 @@ struct socket_alloc {
 994     .owner  = THIS_MODULE,
 995 };
 ```
-`sock_register`主要的工作就是将`PF_INET`注册进`net_families`
+sock_register() 主要的工作就是将 PF_INET 协议族注册进 net_families 数组
 ```
 /// @file net/socket.c
 2606 int sock_register(const struct net_proto_family *ops)
@@ -221,10 +222,10 @@ struct socket_alloc {
 2626     return err;
 2627 }
 ```
-结果就是`net_families[PF_INET]->create`指向的是`inet_create`
+结果就是 net_families[PF_INET]->create 函数指针指向的是 inet_create() 函数
 
-### `inet_protos`数组
-`inet_init::inet_add_protocol`将协议`tcp_protocol`、`udp_protocol`、`icmp_protocol`和`igmp_protocol`写进全局变量`inet_protos`。结果就是
+### inet_protos 数组
+函数 inet_init::inet_add_protocol() 将协议 tcp_protocol、udp_protocol、icmp_protocol 和 igmp_protocol 写进全局变量 inet_protos。结果就是
 ```
 inet_protos[
   IPPROTO_ICMP, &icmp_protocol,
@@ -234,8 +235,8 @@ inet_protos[
 ]
 ```
 
-### `inetsw`链表
-`inetsw`存放的是套接字接口`inet_protosw`指针，将数组`inetsw_array`的内容赋值给`inetsw`。全局变量`inetsw_array`的定义如下：
+###  inetsw 链表
+inetsw 存放的是套接字接口 inet_protosw 对象的指针，初始化时将数组 inetsw_array 的内容赋值给 inetsw 。全局变量 inetsw_array 的定义如下：
 ```
 /// @file net/ipv4/af_inet.c
 1000 static struct inet_protosw inetsw_array[] =
@@ -276,8 +277,8 @@ inet_protos[
 ```
 
 ## 传输控制块的分配和释放
-### `sk_alloc()`
-调用`sk_prot_alloc()`分配一个传输控制块，然后进行必要的初始化。
+### sk_alloc()
+调用 sk_prot_alloc() 分配一个传输控制块，然后进行必要的构造。
 ```
 /// @file net/core/sock.c
 1403 struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
@@ -286,7 +287,7 @@ inet_protos[
 1406     struct sock *sk;
 1407 
 1408     sk = sk_prot_alloc(prot, priority | __GFP_ZERO, family); // 分配
-1409     if (sk) { // 初始化
+1409     if (sk) { // 构造
 1410         sk->sk_family = family;
 1411         /*
 1412          * See comment in struct sock definition to understand
@@ -304,7 +305,7 @@ inet_protos[
 1424     return sk;
 1425 }
 ```
-`sk_prot_alloc()`会根据传入的`prot`参数，决定从何处分配一个什么类型（或大小）的传输控制块。
+sk_prot_alloc() 会根据传入的 prot 参数，决定从何处分配一个什么类型（或大小）的传输控制块。比如说传入指向全局变量 tcp_prot 的指针，就会创建一个 tcp_sock 对象
 ```
 /// @file net/core/sock.c
 1326 static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
@@ -313,8 +314,8 @@ inet_protos[
 1329     struct sock *sk;
 1330     struct kmem_cache *slab;
 1331 
-1332     slab = prot->slab; // slab分配器
-1333     if (slab != NULL) { // 存在slab分配器，从slab中分配一个
+1332     slab = prot->slab; // SLAB 分配器
+1333     if (slab != NULL) { // 存在 SLAB 分配器，从 SLAB 中分配一个
 1334         sk = kmem_cache_alloc(slab, priority & ~__GFP_ZERO);
 1335         if (!sk)
 1336             return sk;
@@ -324,10 +325,10 @@ inet_protos[
 1340             else
 1341                 sk_prot_clear_nulls(sk, prot->obj_size);
 1342         }
-1343     } else // 不存在的话，kmalloc一个
+1343     } else // 不存在的话，用 kmalloc() 函数申请一个
 1344         sk = kmalloc(prot->obj_size, priority);
 1345 
-1346     if (sk != NULL) { // 初始化
+1346     if (sk != NULL) { // 赋值
 1347         kmemcheck_annotate_bitfield(sk, flags);
 1348 
 1349         if (security_sk_alloc(sk, family, priority))
@@ -351,7 +352,7 @@ inet_protos[
 1367 }
 ```
 
-### `sk_free()`
+### sk_free()
 ```
 /// @file net/core/sock.c
 1428 static void __sk_free(struct sock *sk)
@@ -398,20 +399,20 @@ inet_protos[
 1469 }
 ```
 
-## `socket`
+## socket()
 ### 接口
 ```
 int socket(int domain, int type, int protocol);
 ```
 参数说明如下：
-- `doamin`：创建套接字的地址族，如`AF_INET`，`AF_LOCAL`等
-- `type`：套接字类型，如`SOCK_STREAM`，`SOCK_DGRAM`
-- `protocol`，传输层协议，如`IPPROTO_TCP`、`IPPROTO_UDP`，一般传入0
+- doamin：创建套接字的地址族，如 AF_INET，AF_LOCAL 等
+- type：套接字类型，如 SOCK_STREAM，SOCK_DGRAM
+- protocol，传输层协议，如 IPPROTO_TCP、IPPROTO_UDP，一般传入 0
 
 ### 调用关系
 <img src='./imgs/sys-socket-call-stack.png'>
 
-### `sys_socket`
+### sys_socket()
 ```
 /// @file net/socket.c
 1369 SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
@@ -420,13 +421,13 @@ int socket(int domain, int type, int protocol);
 1372     struct socket *sock;
 1373     int flags;
 ```
-1. 调用`sock_create`创建套接字（`struct socket`、`struct sock`）
+1. 调用 sock_create() 创建套接字（创建并构造 socket、sock 对象，并将二者关联）
 ``` 
 1389     retval = sock_create(family, type, protocol, &sock);
 1390     if (retval < 0)
 1391         goto out;
 ```
-2. 调用`sock_map_fd`将`struct sock`绑定一个`struct file`对象（`struct file::private_data = sock`）,然后返回文件描述。
+2. 调用 sock_map_fd() 将创建的 socket 对象绑定到一个 file 对象（file::private_data = sock），然后返回文件描述。
 ```
 1393     retval = sock_map_fd(sock, flags & (O_CLOEXEC | O_NONBLOCK));
 1394     if (retval < 0)
@@ -434,7 +435,7 @@ int socket(int domain, int type, int protocol);
 1404 }
 ```
 
-`sock_create`直接调用`__sock_create`，`__sock_create`比`sock_create`多了两个参数：`net`和`kern`，`kern`用于表示创建的套接字用于内核（1）还是用于普用进程（0）。`net`用于指明命名空间。`__sock_create`调用：
+sock_create() 直接调用 `__sock_create()`，`__sock_create()` 比 sock_create() 多了两个参数：net 和 kern，kern 用于表示创建的套接字用于内核（1）还是用于普用进程（0）。net 用于指明命名空间。`__sock_create()` 函数的调用：
 ```
 /// @file net/socket.c
 1357 int sock_create(int family, int type, int protocol, struct socket **res)
@@ -443,7 +444,7 @@ int socket(int domain, int type, int protocol);
 1360 }
 ```
 
-`socket_map_fd`有一部分工作类似于普通文件`open`系统调用：获取一个空闲描述符，创建一个`struct file`对象，然后将`struct file`对象添加到进程打开的文件指针数组中。除此之外，还需绑定`struct socket`和`struct file`对象
+socket_map_fd() 有一部分工作类似于普通文件 open() 系统调用：获取一个空闲描述符，创建一个 file 对象，然后将 file 对象添加到进程打开的文件指针数组中。除此之外，还需将 socket 绑定到 file 对象
 ```
 /// @file net/socket.c
 395 static int sock_map_fd(struct socket *sock, int flags)
@@ -455,7 +456,7 @@ int socket(int domain, int type, int protocol);
 401      // 获取一个file结构体，并和sock绑定, file->private_data = sock;
 402     newfile = sock_alloc_file(sock, flags, NULL);
 403     if (likely(!IS_ERR(newfile))) {
-404         fd_install(fd, newfile); // 将fd和file绑定
+404         fd_install(fd, newfile); // 将 fd 和 file 绑定
 405         return fd; // 返回文件描述符
 406     }
 407 
@@ -464,8 +465,8 @@ int socket(int domain, int type, int protocol);
 410 }
 ```
 
-### `__sock_create`
-`__sock_create`主要完成套接字的分配，参数和`sock_create`基本一样，至少多了一个`kern`
+### `__sock_create()`
+`__sock_create()` 主要完成套接字的分配
 ```
 /// @file net/socket.c
 1244 int __sock_create(struct net *net, int family, int type, int protocol,
@@ -475,7 +476,7 @@ int socket(int domain, int type, int protocol);
 1248     struct socket *sock;
 1249     const struct net_proto_family *pf;
 ```
-（略过安全检查）接下来调用`sock_alloc`从`sock_inode_cache`slab分配器中申请`struct socket_alloc`对象，同时初始化`inode`和套接字，然后返回指向`socket`的指针`sock`
+（略过安全检查）接下来调用 sock_alloc() 从 sock_inode_cache 指向的 SLAB 分配器中申请一个 socket_alloc 对象，同时做必要的构造，然后返回指向 socket 的指针
 ```
 1283     sock = sock_alloc();
 1284     if (!sock) {
@@ -486,7 +487,7 @@ int socket(int domain, int type, int protocol);
 1289 
 1290     sock->type = type;
 ```
-接下来调用具体的协议族（如果是`AF_INET`，则调用`inet_create`）继续初始化套接字，同时创建`sock`结构体
+接下来调用具体的协议族（如果是 AF_INET，则调用 inet_create() 函数）给 socket 创建一个传输控制块 sock 对象
 ```
 1303     rcu_read_lock();
 1304     pf = rcu_dereference(net_families[family]); // pf->inet_family_ops
@@ -509,8 +510,8 @@ int socket(int domain, int type, int protocol);
 1340     return 0;
 ```
 
-#### `sock_alloc`
-创建一个`socket_alloc`结构体，返回指向`socket`的指针`sock`。
+#### sock_alloc()
+创建一个 socket_alloc 结构体，里面有一个 socket 和一个 inode 成员。但是 sock_alloc() 函数返回的不是指向分配的 socket_alloc 对象的指针，而是返回指向 socket 的指针。
 ```
 /// @file net/socket.c
 540 static struct socket *sock_alloc(void)
@@ -524,7 +525,7 @@ int socket(int domain, int type, int protocol);
 548 
 549     sock = SOCKET_I(inode); // 通过inode成员找到socket成员
 ```
-然后初始化`inode`
+然后构造 inode 成员
 ```
 551     kmemcheck_annotate_bitfield(sock, type);
 552     inode->i_ino = get_next_ino();
@@ -537,7 +538,7 @@ int socket(int domain, int type, int protocol);
 559     return sock;
 560 }
 ```
-`new_inode_pseudo`主要是调用`alloc_inode`（底层`sock_alloc_inode`）。`sock_alloc_inode`在slab分配器中申请一个`socket_alloc`结构体，返回`inode`指针
+new_inode_pseudo() 主要是调用 alloc_inode()（底层是 sock_alloc_inode() 函数）。sock_alloc_inode() 在 SLAB 分配器中申请一个 socket_alloc 对象，返回指向 inode 指针
 ```
 249 static struct inode *sock_alloc_inode(struct super_block *sb)
 250 {
@@ -565,10 +566,10 @@ int socket(int domain, int type, int protocol);
 272     return &ei->vfs_inode;
 273 }
 ```
-此时`socket`的状态为未连接，`type`为传入的值，其他成员为空
+此时 socket 的状态为未连接， type 为传入的值，其他成员为空
 
-#### `inet_create`
-`inet_create`主要是用于创建一个`struct tcp_sock`或者`struct udp_sock`对象（或其他），并与`struct socket`对象关联起来（`struct socket::sock <--> struct sock::ssocket`）
+#### inet_create()
+inet_create() 主要是用于创建一个传输控制块，比如 tcp_sock 或 udp_sock 对象或者其他，并与 socket 对象关联起来（socket::sock <--> struct sock::sk_socket）
 ```
 /// @file net/ipv4/af_inet.c
 251 static int inet_create(struct net *net, struct socket *sock, int protocol,
@@ -588,7 +589,7 @@ int socket(int domain, int type, int protocol);
 265     sock->state = SS_UNCONNECTED;
 
 ```
-首先根据`sock->type`在`inetsw`链表中找到IP协议提供的接口`inet_protosw`。考虑两种套接字类型`SOCK_STREAM`和`SOCK_DGRAM`。其`osp`和`prot`分布指向`inet_stream_ops`，`tcp_prot`和`inet_dgram_ops`，`udp_prot`。
+首先根据 sock->type 在全局变量 inetsw 链表中找到IP协议提供的接口 inet_protosw 。考虑两种套接字类型 SOCK_STREAM 和 SOCK_DGRAM。其 osp 和 prot 分布指向全局变量 inet_stream_ops，tcp_prot 和 inet_dgram_ops，udp_prot。
 ```
 269     err = -ESOCKTNOSUPPORT;
 270     rcu_read_lock();
@@ -617,14 +618,14 @@ int socket(int domain, int type, int protocol);
 318     answer_prot = answer->prot;
 319     answer_flags = answer->flags;
 ```
-接下来申请`sock`结构体，会从`answer_prot->slab`所指向的slab分配器中申请对象（如果存在）申请对象。如果slab分配器不存在，用`kmalloc`申请大小为`answer_prot->obj_size`的对象。
+接下来申请 sock 对象，会从 answer_prot->slab 所指向的 SLAB 分配器中申请对象（如果存在）申请对象。如果 SLAB 分配器不存在，用 kmalloc() 申请大小为 answer_prot->obj_size 的对象。
 ```
 324     err = -ENOBUFS;
 325     sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot);
 326     if (sk == NULL)
 327         goto out;
 ```
-最后初始化`sock`结构体。设置是否可以重用套接字（IP地址和端口）
+最后构造 sock 对象。设置是否可以重用套接字（IP 地址和端口）
 ```
 330     if (INET_PROTOSW_REUSE & answer_flags)
 331         sk->sk_reuse = SK_CAN_REUSE;
@@ -643,15 +644,15 @@ int socket(int domain, int type, int protocol);
 348 
 349     inet->inet_id = 0;
 350 
-351     sock_init_data(sock, sk); // 初始化sock
+351     sock_init_data(sock, sk); // 构造 sock
 352 
 353     sk->sk_destruct    = inet_sock_destruct; // 回调函数，清理工作
 354     sk->sk_protocol    = protocol;
 355     sk->sk_backlog_rcv = sk->sk_prot->backlog_rcv;
 356 
-357     inet->uc_ttl    = -1; // 单播TTL
+357     inet->uc_ttl    = -1; // 单播 TTL
 358     inet->mc_loop   = 1;
-359     inet->mc_ttl    = 1; // 多播TTL
+359     inet->mc_ttl    = 1; // 多播 TTL
 360     inet->mc_all    = 1;
 361     inet->mc_index  = 0;
 362     inet->mc_list   = NULL;
@@ -672,22 +673,22 @@ int socket(int domain, int type, int protocol);
 382     }
 ```
 
-## `bind`
-`bind` 系统调用将一个本地的IP地址及传输层的端口和套接字关联起来。
+## `bind()`
+bind() 系统调用将一个本地的 IP 地址及传输层的端口和套接字关联起来。
 
 ### 接口
 ```
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 ```
 参数说明如下：
-- `sockfd`：套接字文件描述符
-- `addr`：本地地址
-- `addlen`：`addr`字节数
+- sockfd：套接字文件描述符
+- addr：本地地址
+- addlen：addr 的字节数
 
 ### 调用关系
 <img src='./imgs/bind-call-stack.png'>
 
-### `sys_bind`
+### sys_bind()
 ```
 /// @file net/socket.c
 1519 SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
@@ -713,9 +714,9 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 1539     return err;
 1540 }
 ```
+首先调用 sockfd_lookup_light() 返回文件描述符对应 file 对象，从中找到关联的套接字文件，并且返回是否需要减少该文件引用计数的标志。套接字和它地应的文件是绑定的，因此在使用套接字的时候需要增加对文件的引用计数，防止被意外释放。
 
-#### `sockfd_lookup_light`
-首先调用`sockfd_lookup_light`返回文件描述符对应`struct file`对象，从中找到关联的套接字文件，并且返回是否需要减少该文件引用计数的标志。套接字和它地应的文件是绑定的，因此在使用套接字的时候需要增加对文件的引用计数，防止被意外释放。
+#### sockfd_lookup_light()
 ```
 /// @file net/socket.c
 453 static struct socket *sockfd_lookup_light(int fd, int *err, int *fput_needed)
@@ -736,8 +737,8 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 468 }
 ```
 
-#### `inet_bind`
-`sock->ops->bind`函数指针指向具体套接字文件的绑定操作。
+#### `inet_bind()`
+sock->ops->bind 函数指针指向具体套接字文件的绑定操作。
 ```
 /// @file net/ipv4/af_inet.c
 430 int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
@@ -750,7 +751,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 437     int chk_addr_ret;
 438     int err;
 ```
-如果当前套接字（`SOCK_RAM`）实现了`bind`方法，则直接调用，进行地址绑定。
+如果当前套接字（如 SOCK_RAM）实现了 bind() 函数，则直接调用，进行地址绑定。
 ```
 /// @file net/ipv4/af_inet.c
 440     /* If the socket has its own bind function then use it. (RAW) */
@@ -759,14 +760,14 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 443         goto out;
 444     }
 ```
-否则（`SOCK_STREAM`、`SOCK_DGRAM`）进行如下操作。首先进行地址和端口号合法性检查
+否则（如 SOCK_STREAM 和 SOCK_DGRAM）进行如下操作。首先进行地址和端口号合法性检查
 ```
 /// @file net/ipv4/af_inet.c
 459     chk_addr_ret = inet_addr_type(net, addr->sin_addr.s_addr);
 468     err = -EADDRNOTAVAIL;
 469     if (!sysctl_ip_nonlocal_bind && /* sysctl_ip_nonlocal_bin默认false */
 470         !(inet->freebind || inet->transparent) && /* */
-471         addr->sin_addr.s_addr != htonl(INADDR_ANY) && /* INADDR_ANY不进行操作 */
+471         addr->sin_addr.s_addr != htonl(INADDR_ANY) && /* INADDR_ANY 不进行操作 */
 472         chk_addr_ret != RTN_LOCAL &&
 473         chk_addr_ret != RTN_MULTICAST &&
 474         chk_addr_ret != RTN_BROADCAST)
@@ -774,7 +775,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 476 
 477     snum = ntohs(addr->sin_port);
 478     err = -EACCES;
-479     if (snum && snum < PROT_SOCK && /* PROT_SOCK = 1024，绑定小于1024的端口 */
+479     if (snum && snum < PROT_SOCK && /* PROT_SOCK = 1024，绑定小于 1024 的端口 */
 480         !ns_capable(net->user_ns, CAP_NET_BIND_SERVICE)) /* 当前进程没有特权 */
 481         goto out;
 ```
@@ -792,7 +793,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 498     if (chk_addr_ret == RTN_MULTICAST || chk_addr_ret == RTN_BROADCAST)
 499         inet->inet_saddr = 0;  /* Use device */
 500 
-501     // 在传输层绑定端口号，调用inet_csk_get_port(TCP)或者udp_v4_get_port(UDP)，出错返回非0
+501     // 在传输层绑定端口号，调用 inet_csk_get_port(TCP) 或者 udp_v4_get_port(UDP)，出错返回非 0
 502     if (sk->sk_prot->get_port(sk, snum)) { 
 503         inet->inet_saddr = inet->inet_rcv_saddr = 0; // 绑定失败
 504         err = -EADDRINUSE;
@@ -803,23 +804,23 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 509         sk->sk_userlocks |= SOCK_BINDADDR_LOCK; // 标记已经绑定ip地址
 510     if (snum)
 511         sk->sk_userlocks |= SOCK_BINDPORT_LOCK; // 标记以及绑定端口号
-512     inet->inet_sport = htons(inet->inet_num); // inet_sock本地端口号
+512     inet->inet_sport = htons(inet->inet_num); // inet_sock 本地端口号
 513     inet->inet_daddr = 0; // 初始化目的ip地址
 514     inet->inet_dport = 0; // 初始化目的端口号
 515     sk_dst_reset(sk);
 516     err = 0;
 ```
 
-## `listen`
-当`socket`函数创建一个套接字是，他被假设为一个主动套接字（调用`connect`发起连接的客户套接字）。`listen`函数把一个未连接的套接字转换成一个被动套接字，指示内核应接受指向该套接字的连接请求。调用`listen`导致套接字从`CLOSED`状态转换到`LISTEN`状态。同时可以指定已完成连接的队列长度。超过门限制，套接字将拒绝新的连接请求。
+## listen()
+当 socket() 函数创建一个套接字是，他被假设为一个主动套接字（调用 connect() 发起连接的客户套接字）。listen() 函数把一个未连接的套接字转换成一个被动套接字，指示内核应接受指向该套接字的连接请求。调用 listen() 导致套接字从 CLOSED 状态转换到 LISTEN 状态。同时可以指定已完成连接的队列长度。超过门限制，套接字将拒绝新的连接请求。
 
 ### 接口
 ```
 int listen(int sockfd, int backlog);
 ```
 参数说明如下：
-- `sockfd`：套接字文件描述符
-- `backlog`：已完成连接的队列长度
+- sockfd：套接字文件描述符
+- backlog：已完成连接的队列长度
 
 ### 调用关系
 ```
@@ -828,7 +829,7 @@ sys_listen()
         |-->inet_csk_listen_start()
 ```
 
-### `sys_listen`
+### sys_listen()
 ```
 /// @file net/socket.c
 1548 SYSCALL_DEFINE2(listen, int, fd, int, backlog)
@@ -853,7 +854,7 @@ sys_listen()
 1567 }
 ```
 
-### `inet_listen`
+### inet_listen()
 ```
 /// @file net/ipv4/af_inet.c
 192 int inet_listen(struct socket *sock, int backlog)
@@ -864,7 +865,7 @@ sys_listen()
 197 
 198     lock_sock(sk);
 ```
-首先检查`socket`的状态和类型。如果不是`SS_UNCONNECTED`状态或者不是`SOCK_STREAM`类型，跳出。然后检查`sock`的状态是否为`TCPF_CLOSE`或者`TCPF_LISTEN`，不能在其他状态时进行`listen`
+首先检查 socket 对象的状态和类型。如果不是 SS_UNCONNECTED 状态或者不是 SOCK_STREAM 类型，跳出。然后检查 sock 对象的状态是否为 TCPF_CLOSE 或者 TCPF_LISTEN ，不能在其他状态时调用 listen()
 ```
 200     err = -EINVAL;
 201     if (sock->state != SS_UNCONNECTED || sock->type != SOCK_STREAM)
@@ -878,7 +879,7 @@ sys_listen()
 209      * we can only allow the backlog to be adjusted.
 210      */
 211     if (old_state != TCP_LISTEN) { // old_state为TCP_CLOSE
-212         // TFO（TCP Fast Open）是一种能够在TCP连接建立阶段传输数据的机制。忽略
+212         // TFO（TCP Fast Open）是一种能够在 TCP 连接建立阶段传输数据的机制。忽略
 219         if ((sysctl_tcp_fastopen & TFO_SERVER_ENABLE) != 0 &&
 220             inet_csk(sk)->icsk_accept_queue.fastopenq == NULL) {
 221             if ((sysctl_tcp_fastopen & TFO_SERVER_WO_SOCKOPT1) != 0)
@@ -897,8 +898,8 @@ sys_listen()
 234         err = inet_csk_listen_start(sk, backlog); // 做监听初始化，申请连接请求队列
 235         if (err)
 236             goto out;
-237     } // 如果已经是TCP_LISTEN状态，不会进行初始化，而是设置backlog
-238     sk->sk_max_ack_backlog = backlog; // 设置sock的已完成连接的队列长度
+237     } // 如果已经是 TCP_LISTEN 状态，不会进行初始化，而是设置 backlog
+238     sk->sk_max_ack_backlog = backlog; // 设置 sock 的已完成连接的队列长度
 239     err = 0;
 240 
 241 out:
@@ -907,8 +908,8 @@ sys_listen()
 244 }
 ```
 
-### `inet_csk_listen_start`
-首先调用`reqsk_queue_alloc`申请已完成连接的队列。`nr_table_entries`表示存储已建立的连接的队列的最大长度。
+### inet_csk_listen_start()
+首先调用 reqsk_queue_alloc() 申请已完成连接的队列。nr_table_entries 表示存储已建立的连接的队列的最大长度。
 ```
 /// @file net/ipv4/inet_connection_sock.c
 744 int inet_csk_listen_start(struct sock *sk, const int nr_table_entries)
@@ -920,13 +921,13 @@ sys_listen()
 750     if (rc != 0)
 751         return rc;
 ```
-然后初始化`sock`相关的数据
+然后构造 sock 相关的数据
 ```
 753     sk->sk_max_ack_backlog = 0; // ？？
 754     sk->sk_ack_backlog = 0; // 已完成连接为0
 755     inet_csk_delack_init(sk); // 初始化延迟确认相关的数据结构
 
-762     sk->sk_state = TCP_LISTEN; // 设置TCP状态
+762     sk->sk_state = TCP_LISTEN; // 设置 TCP 状态
 763     if (!sk->sk_prot->get_port(sk, inet->inet_num)) { // 如果没有绑定端口号，绑定一个临时的
 764         inet->inet_sport = htons(inet->inet_num);
 765 
@@ -943,8 +944,8 @@ sys_listen()
 ```
 <img src='./imgs/inet_csk_listen_start1.png'>
 
-### `reqsk_queue_alloc`
-申请已完成连接的队列。当完成三次握手，并不会申请一个`struct tcp_sock`对象（大小2048字节），而是申请一个`struct tcp_request_sock`对象（大小304字节）放到已完成连接队列`icsk_accept_queue`里面。
+### reqsk_queue_alloc()
+申请已完成连接的队列。在三次握手过程，并不会申请一个 tcp_sock 对象（大小2048字节），而是申请一个 tcp_request_sock 对象（大小304字节）。未完成的连接放在 request_sock_queue::listen_opt::syn_table 中，此时 tcp_request_sock::sk 指针为空。当完成了三次握手，会申请一个 tcp_sock 对象，由 tcp_request_sock::sk 指向，然后将 tcp_request_sock 对象放到已完成连接队列 icsk_accept_queue 里面。
 ```
 /// @file net/core/request_sock.c
 37 int sysctl_max_syn_backlog = 256;
@@ -954,11 +955,11 @@ sys_listen()
 43     size_t lopt_size = sizeof(struct listen_sock);
 44     struct listen_sock *lopt;
 45 
-46     nr_table_entries = min_t(u32, nr_table_entries, sysctl_max_syn_backlog); // 最大值256
-47     nr_table_entries = max_t(u32, nr_table_entries, 8); // 最小值为8
-48     nr_table_entries = roundup_pow_of_two(nr_table_entries + 1); // 对齐2^n
+46     nr_table_entries = min_t(u32, nr_table_entries, sysctl_max_syn_backlog); // 最大值 256
+47     nr_table_entries = max_t(u32, nr_table_entries, 8); // 最小值为 8
+48     nr_table_entries = roundup_pow_of_two(nr_table_entries + 1); // 对齐 2^n
 49     lopt_size += nr_table_entries * sizeof(struct request_sock *); // 总共字节数
-50     if (lopt_size > PAGE_SIZE) // 大于1页
+50     if (lopt_size > PAGE_SIZE) // 大于 1 页
 51         lopt = vzalloc(lopt_size); // 分配并清零
 52     else
 53         lopt = kzalloc(lopt_size, GFP_KERNEL); // 分配并清零
@@ -983,17 +984,17 @@ sys_listen()
 ```
 <img src='./imgs/inet_csk_listen_start2.png'>
 
-## `accept()`
-`accept()`返回一个新的文件描述符，指向一个连接到客户的套接字文件。
+## accept()
+accept() 返回一个新的文件描述符，指向一个连接到客户的套接字文件。
 
 ### 接口
 ```
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 ```
 参数说明如下
-- `sockfd`：服务端监听套接字
-- `addr`：远端地址
-- `addrlen`：地址长度
+- sockfd：服务端监听套接字
+- addr：远端地址
+- addrlen：地址长度
 
 ### 调用关系
 ```
@@ -1010,8 +1011,8 @@ sys_accept()
       |-->fput_light()
 ```
 
-### `sys_accept()`
-`sys_accept()`直接调用`sys_accept4()`
+### sys_accept()
+sys_accept() 直接调用 sys_accept4()
 ```
 /// @file net/socket.c
 1662 SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
@@ -1020,7 +1021,7 @@ sys_accept()
 1665     return sys_accept4(fd, upeer_sockaddr, upeer_addrlen, 0);
 1666 }
 ```
-`sys_accept4()`首先创建一个新的`struct socket`对象和`struct file`对象，然后绑定两者。
+sys_accept4() 首先创建一个新的 socket 对象和 file 对象，然后绑定两者。
 ```
 /// @file net/socket.c
 1581 SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
@@ -1061,7 +1062,7 @@ sys_accept()
 1616         sock_release(newsock);
 1617         goto out_put;
 1618     }
-         // 分配一个file对象，绑定socket对象
+         // 分配一个 file 对象，绑定 socket 对象
 1619     newfile = sock_alloc_file(newsock, flags, sock->sk->sk_prot_creator->name);
 1620     if (unlikely(IS_ERR(newfile))) {
 1621         err = PTR_ERR(newfile);
@@ -1074,7 +1075,7 @@ sys_accept()
 1628     if (err)
 1629         goto out_fd;
 1630 
-1631     err = sock->ops->accept(sock, newsock, sock->file->f_flags); // 调用inet_accept
+1631     err = sock->ops->accept(sock, newsock, sock->file->f_flags); // 调用 inet_accept()
 1632     if (err < 0)
 1633         goto out_fd;
 1634 
@@ -1092,7 +1093,7 @@ sys_accept()
 1646 
 1647     /* File flags are not inherited via accept() unlike another OSes. */
 1648 
-1649     fd_install(newfd, newfile); // 绑定文件描述符和file对象 
+1649     fd_install(newfd, newfile); // 绑定文件描述符和 file 对象 
 1650     err = newfd;
 1651 
 1652 out_put:
@@ -1106,8 +1107,8 @@ sys_accept()
 1660 }
 ```
 
-### `inet_accept()`
-调用`inet_csk_accept()`返回一个已建立的连接的传输控制块
+### inet_accept()
+调用 inet_csk_accept() 返回一个已建立的连接的传输控制块
 ```
 /// @file  net/ipv4/af_inet.c 
 672 int inet_accept(struct socket *sock, struct socket *newsock, int flags)
@@ -1135,7 +1136,7 @@ sys_accept()
 694     return err;
 695 }
 ```
-### `inet_csk_accept()`
+### inet_csk_accept()
 <img src='./imgs/inet-csk-accept.png'>
 
 ```
@@ -1160,7 +1161,7 @@ sys_accept()
 309     /* Find already established connection */
 310     if (reqsk_queue_empty(queue)) { // 已建立连接的队列为空
 311         long timeo = sock_rcvtimeo(sk, flags & O_NONBLOCK);
-312         // 非阻塞套接字直接返回0，否则返回阻塞时间
+312         // 非阻塞套接字直接返回 0，否则返回阻塞时间
 313         /* If this is a non blocking socket don't sleep */
 314         error = -EAGAIN;
 315         if (!timeo) // 非阻塞，返回-EAGAIN
@@ -1170,10 +1171,10 @@ sys_accept()
 319         if (error)
 320             goto out_err;
 321     }
-322     req = reqsk_queue_remove(queue); // 出队，返回一个指向 request_sock对象的指针
+322     req = reqsk_queue_remove(queue); // 出队，返回一个指向 request_sock 对象的指针
 323     newsk = req->sk; // 取出传输控制块
 324 
-325     sk_acceptq_removed(sk); // --sk->sk_ack_backlog，已建立连接数量减1
+325     sk_acceptq_removed(sk); // --sk->sk_ack_backlog，已建立连接数量减 1
 326     if (sk->sk_protocol == IPPROTO_TCP && queue->fastopenq != NULL) {
 327         spin_lock_bh(&queue->fastopenq->lock);
 328         if (tcp_rsk(req)->listener) {
@@ -1201,22 +1202,22 @@ sys_accept()
 350 }
 ```
 
-## `connect()`
-对于TCP，建立一条与指定的外部地址的连接，如果在`connect()`调用前没有绑定地址和端口号，则会自动绑定一个地址和端口号到地址。对于无连接协议如UDP和ICMP，`connect`则记录外部地址，以便发送数据报时使用。
+## connect()
+对于 TCP，建立一条与指定的外部地址的连接，如果在 connect() 调用前没有绑定地址和端口号，则会自动绑定一个地址和端口号到地址。对于无连接协议如 UDP 和 ICMP，connect() 则记录外部地址，以便发送数据报时使用。
 
 ### 接口
 ```
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 ```
 参数说明
-- `sockfd`：本地套接字描述符
-- `addr`：远端地址
-- `addlen`：地址大小（字节数）
+- sockfd：本地套接字描述符
+- addr：远端地址
+- addlen：地址大小（字节数）
 
 ### 调用关系
 <img src='./imgs/sys-connect.png'>
 
-### `sys_connect()`
+### sys_connect()
 ```
 /// @file net/socket.c
 1680 SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr,
@@ -1247,8 +1248,8 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 1705 }
 ```
 
-### `sock->ops->connect()`
-#### `inet_stream_connect()`
+### sock->ops->connect()
+#### inet_stream_connect()
 ```
 /// @file net/ipv4/af_inet.c
 656 int inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
@@ -1352,7 +1353,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 653 }
 ```
 
-#### `inet_dgram_connect()`
+#### inet_dgram_connect()
 ```
 /// @file net/ipv4/af_inet.c
 524 int inet_dgram_connect(struct socket *sock, struct sockaddr *uaddr,
@@ -1371,23 +1372,23 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 537 }
 ```
 
-## `shutdown()`
-`shutdown()`关闭连接的读通道、写通道或读写通道。对于读通道，`shutdown()`丢弃所有进程还没有读走的数据以及调用`shutdown()`之后到达的数据。对于写通道，`shutdown()`使用协议作相应的处理，如果是TCP，所有剩余的数据将被发送，发送完成后发送`FIN`。
+## shutdown()
+shutdown() 关闭连接的读通道、写通道或读写通道。对于读通道，shutdown() 丢弃所有进程还没有读走的数据以及调用 shutdown() 之后到达的数据。对于写通道，shutdown() 使用协议作相应的处理，如果是 TCP，所有剩余的数据将被发送，发送完成后发送 FIN。
 ### 接口
 ```
 int shutdown(int sockfd, int how);
 ```
 参数说明
-- `sock`：需要断开的套接字文件描述符
-- `howto`：传递断开方式信息
-  - `SHUT_RD`：断开输入流
-  - `SHUT_WR`：断开输出流
-  - `SHUT_RDWR`：同时断开输入输出流
+- sock：需要断开的套接字文件描述符
+- howto：传递断开方式信息
+  - SHUT_RD：断开输入流
+  - SHUT_WR：断开输出流
+  - SHUT_RDWR：同时断开输入输出流
 
 ### 调用关系
 <img src='./imgs/sys-shutdown.png'>
 
-### `sys_shutdown()`
+### sys_shutdown()
 ```
 /// @file net/socket.c
 1956 SYSCALL_DEFINE2(shutdown, int, fd, int, how)
@@ -1406,7 +1407,7 @@ int shutdown(int sockfd, int how);
 1969 }
 ```
 
-### `inet_shutdown()`
+### inet_shutdown()
 ```
 /// @file net/ipv4/af_inet.c
 781 int inet_shutdown(struct socket *sock, int how)
@@ -1462,7 +1463,7 @@ int shutdown(int sockfd, int how);
 833 }
 ```
 
-### `tcp_shutdown()`
+### tcp_shutdown()
 ```
 /// @file net/ipv4/tcp.c
 2097 void tcp_shutdown(struct sock *sk, int how)
@@ -1485,7 +1486,7 @@ int shutdown(int sockfd, int how);
 2114 }
 ```
 
-## `close()`
+## close()
 关闭各种文件描述符，这里只讨论关闭套接字文件描述符
 
 ### 接口
@@ -1496,7 +1497,7 @@ int close(int sockfd);
 ### 调用关系
 <img src='./imgs/sys-close.png'>
 
-### `sys_close()`
+### sys_close()
 ```
 /// @file fs/open.c
 1051 SYSCALL_DEFINE1(close, unsigned int, fd)
@@ -1525,10 +1526,10 @@ int close(int sockfd);
 579     fdt = files_fdtable(files);
 580     if (fd >= fdt->max_fds)
 581         goto out_unlock;
-582     file = fdt->fd[fd]; // 文件描述符对应的file对象
+582     file = fdt->fd[fd]; // 文件描述符对应的 file 对象
 583     if (!file)
 584         goto out_unlock;
-585     rcu_assign_pointer(fdt->fd[fd], NULL); // 从fdt中删除
+585     rcu_assign_pointer(fdt->fd[fd], NULL); // 从 fdt 中删除
 586     __clear_close_on_exec(fd, fdt);
 587     __put_unused_fd(files, fd); // 归还文件描述符
 588     spin_unlock(&files->file_lock);
@@ -1540,14 +1541,14 @@ int close(int sockfd);
 594 }
 ```
 
-### flip_close
+### flip_close()
 ```
 /// @file fs/open.c
 1024 int filp_close(struct file *filp, fl_owner_t id)
 1025 {
 1026     int retval = 0;
 1027 
-1028     if (!file_count(filp)) { // 检查引用计数，引用计数为0表示关闭一个没有使用的文件，出错
+1028     if (!file_count(filp)) { // 检查引用计数，引用计数为 0 表示关闭一个没有使用的文件，出错
 1029         printk(KERN_ERR "VFS: Close: file count is 0\n");
 1030         return 0;
 1031     }
@@ -1564,7 +1565,7 @@ int close(int sockfd);
 1042 }
 ```
 
-### fput
+### fput()
 ```
 /// @file fs/file_table.c
 272 void fput(struct file *file)
@@ -1611,7 +1612,7 @@ int close(int sockfd);
 204      * The function eventpoll_release() should be the first called
 205      * in the file cleanup chain.
 206      */
-207     eventpoll_release(file); // 如果注册到了epoll，从中删除
+207     eventpoll_release(file); // 如果注册到了 epoll，从中删除
 208     locks_remove_file(file);
 209     
 210     if (unlikely(file->f_flags & FASYNC)) {
@@ -1620,7 +1621,7 @@ int close(int sockfd);
 213     }
 214     ima_file_free(file);
 215     if (file->f_op->release)
-216         file->f_op->release(inode, file); // 关闭，调用sock_close
+216         file->f_op->release(inode, file); // 关闭，调用 sock_close()
 217     security_file_free(file);
 218     if (unlikely(S_ISCHR(inode->i_mode) && inode->i_cdev != NULL &&
 219              !(file->f_mode & FMODE_PATH))) {
@@ -1637,13 +1638,13 @@ int close(int sockfd);
 230     file->f_path.dentry = NULL;
 231     file->f_path.mnt = NULL;
 232     file->f_inode = NULL;
-233     file_free(file); // 释放file对象
+233     file_free(file); // 释放 file 对象
 234     dput(dentry); // 释放目录项
 235     mntput(mnt);
 236 }
 ```
 
-### `sock_close()`
+### sock_close()
 ```
 /// @file  net/socket.c
 1170 static int sock_close(struct inode *inode, struct file *filp)
@@ -1652,14 +1653,14 @@ int close(int sockfd);
 1173     return 0;
 1174 }
 ```
-继而调用`sock_release()`
+继而调用 sock_release()
 ```
 588 void sock_release(struct socket *sock)
 589 {
 590     if (sock->ops) {
 591         struct module *owner = sock->ops->owner;
 592 
-593         sock->ops->release(sock); // 调用inet_release
+593         sock->ops->release(sock); // 调用 inet_release()
 594         sock->ops = NULL;
 595         module_put(owner);
 596     }
@@ -1672,14 +1673,14 @@ int close(int sockfd);
 603 
 604     this_cpu_sub(sockets_in_use, 1);
 605     if (!sock->file) {
-606         iput(SOCK_INODE(sock)); // 释放索inode和socket对象
+606         iput(SOCK_INODE(sock)); // 释放索 inode 和 socket 对象
 607         return;
 608     }
 609     sock->file = NULL;
 610 }
 ```
 
-### inet_release
+### inet_release()
 ```
 /// @file  net/socket.c
 396 int inet_release(struct socket *sock)
@@ -1712,7 +1713,7 @@ int close(int sockfd);
 423 }
 ```
 
-### tcp_close
+### tcp_close()
 <img src='./imgs/tcp-close.png'>
 
 ```
@@ -1727,7 +1728,7 @@ int close(int sockfd);
 2138     sk->sk_shutdown = SHUTDOWN_MASK;
 2139 
 2140     if (sk->sk_state == TCP_LISTEN) {
-2141         tcp_set_state(sk, TCP_CLOSE); // 设置TCP状态为TCP_CLOSE
+2141         tcp_set_state(sk, TCP_CLOSE); // 设置 TCP 状态为 TCP_CLOSE
 2142 
 2143         /* Special case. */
 2144         inet_csk_listen_stop(sk); // 停止监听
@@ -1754,16 +1755,16 @@ int close(int sockfd);
 2175     } else if (data_was_unread) { // 存在为读取数据
 2176         /* Unread data was tossed, zap the connection. */
 2177         NET_INC_STATS_USER(sock_net(sk), LINUX_MIB_TCPABORTONCLOSE);
-2178         tcp_set_state(sk, TCP_CLOSE); // 甚至TCP状态为TCP_CLOSE
-2179         tcp_send_active_reset(sk, sk->sk_allocation); // 构造一个RST分节并发送
+2178         tcp_set_state(sk, TCP_CLOSE); // 甚至 TCP 状态为 TCP_CLOSE
+2179         tcp_send_active_reset(sk, sk->sk_allocation); // 构造一个 RST 分节并发送
 2180     } else if (sock_flag(sk, SOCK_LINGER) && !sk->sk_lingertime) {
 2181         /* Check zero linger _after_ checking for unread data. */
 2182         sk->sk_prot->disconnect(sk, 0); // 调用tcp_disconnect()断开连接
 2183         NET_INC_STATS_USER(sock_net(sk), LINUX_MIB_TCPABORTONDATA);
-2184     } else if (tcp_close_state(sk)) { // 设置为下一个状态，如果可以发送FIN
+2184     } else if (tcp_close_state(sk)) { // 设置为下一个状态，如果可以发送 FIN
 2214         tcp_send_fin(sk); // 发送FIN分节
 2215     }
-2216     // 等待TCP完成其他操作
+2216     // 等待 TCP 完成其他操作
 2217     sk_stream_wait_close(sk, timeout);
 2218 
 2219 adjudge_to_death:
@@ -1786,17 +1787,17 @@ int close(int sockfd);
 2238     if (state != TCP_CLOSE && sk->sk_state == TCP_CLOSE) // 已经关闭，无需处理
 2239         goto out;
 2254 
-2255     if (sk->sk_state == TCP_FIN_WAIT2) { // 处于TCP_FIN_WAIT2状态
+2255     if (sk->sk_state == TCP_FIN_WAIT2) { // 处于 TCP_FIN_WAIT2 状态
 2256         struct tcp_sock *tp = tcp_sk(sk);
 2257         if (tp->linger2 < 0) {
 2258             tcp_set_state(sk, TCP_CLOSE);
-2259             tcp_send_active_reset(sk, GFP_ATOMIC); // 发送RST
+2259             tcp_send_active_reset(sk, GFP_ATOMIC); // 发送 RST
 2260             NET_INC_STATS_BH(sock_net(sk),
 2261                     LINUX_MIB_TCPABORTONLINGER);
 2262         } else {
 2263             const int tmo = tcp_fin_time(sk);
 2264 
-2265             if (tmo > TCP_TIMEWAIT_LEN) { // 超时时间大于60秒
+2265             if (tmo > TCP_TIMEWAIT_LEN) { // 超时时间大于 60 秒
 2266                 inet_csk_reset_keepalive_timer(sk,
 2267                         tmo - TCP_TIMEWAIT_LEN);// 重置超时时间
 2268             } else {
@@ -1809,7 +1810,7 @@ int close(int sockfd);
 2275         sk_mem_reclaim(sk);
 2276         if (tcp_check_oom(sk, 0)) {
 2277             tcp_set_state(sk, TCP_CLOSE);
-2278             tcp_send_active_reset(sk, GFP_ATOMIC); // 发送RST
+2278             tcp_send_active_reset(sk, GFP_ATOMIC); // 发送 RST
 2279             NET_INC_STATS_BH(sock_net(sk),
 2280                     LINUX_MIB_TCPABORTONMEMORY);
 2281         }
