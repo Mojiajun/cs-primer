@@ -1369,7 +1369,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 1535             uevent++;
 1536             if (epi->event.events & EPOLLONESHOT)
 1537                 epi->event.events &= EP_PRIVATE_BITS;
-1538             else if (!(epi->event.events & EPOLLET)) { // 不是边缘触发，相当于默认边缘触发
+1538             else if (!(epi->event.events & EPOLLET)) { // 不是边缘触发，相当于默认条件触发
 1539                 // 是水平触发，需要将 epitem 再次插入到就绪链表，下一次
                      // 调用 epoll_wait 会再次检查事件是否就绪。
 1550                 list_add_tail(&epi->rdllink, &ep->rdllist);
