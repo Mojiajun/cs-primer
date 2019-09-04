@@ -5,8 +5,8 @@
 ```
 #inlcude <sys/socket.h>
 int socket(int domain, int type, int protocol);                        // 成功返回文件描述符，失败返回-1
-int bind(int sockfd, struct sockaddr *myaddr, socklen_t addrlen);      // 成功返回0，失败返回 -1
-int listen(int socktd, int backlog);                                   // 成功返回0，失败返回 -1
+int bind(int sockfd, struct sockaddr *myaddr, socklen_t addrlen);      // 成功返回 0，失败返回 -1
+int listen(int socktd, int backlog);                                   // 成功返回 0，失败返回 -1
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);     // 成功返回文件描述符，失败返回 -1
 int connect(int sockfd, struct sockadd *serv_addr, socklen_t addrlen); // 成功返回文件描述符，失败返回 -1
 ```
@@ -141,12 +141,12 @@ int inet_aton(const char *string, struct in_addr *addr);
  * addrlen：长度
  * return：成功时返回传输的字节数，失败时返回 -1
  */
-ssize_t sendto(int             sockfd, 
+ssize_t sendto(int              sockfd, 
                void            *buff, 
-               size_t          nbytes, 
-               int             flags, 
+               size_t           nbytes, 
+               int              flags, 
                struct sockaddr *to, 
-               socklen_t       addrlen);
+               socklen_t        addrlen);
 
 /* @param
  * sockfd：用于接收数据的 UDP 套接字文件描述符
@@ -157,12 +157,12 @@ ssize_t sendto(int             sockfd,
  * addrlen：保存长度
  * return：成功时返回接受的字节数，失败时返回-1
  */
-ssize_t recvfrom(int             sockfd, 
+ssize_t recvfrom(int              sockfd, 
                  void            *buff, 
-                 size_t          nbytes, 
-                 int             flags, 
-                 struct sockaddr *to, 
-                 socklen_t       addrlen);
+                 size_t           nbytes, 
+                 int              flags, 
+                 struct sockaddr *from, 
+                 socklen_t        addrlen);
 ```
 ### UDP 客户端套接字的地址分配
 可以调用 bind() 函数显式绑定，如果没有显式分配，调用 sendto() 函数时自动分配 IP 和端口号
@@ -170,7 +170,7 @@ ssize_t recvfrom(int             sockfd,
 UDP 是具有数据边界的协议，传输中调用 IO 函数的次数非常重要，输入函数的调用次数应和输出函数的调用次数完全一致
 ### 已连接（connected）UDP 套接字与未连接（unconnected）UDP 套接字
 - sendto() 函数传输数据的过程
-  - S1：向 UDP 套接字注册目标 IP 和端口号
+  - S1：向 UDP 套接字注册远端 IP 地址和端口号
   - S2：传输数据
   - S3：删除 UDP 套接字中注册的目标地址信息
 - 创建已连接 UDP 套接字
@@ -180,7 +180,7 @@ UDP 是具有数据边界的协议，传输中调用 IO 函数的次数非常重
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = ...
   addr.sin_port = ...
-  connect(sock, (struct sockaddr*)&addr, sizeof(addr));
+  connect(sock, (struct sockaddr*)&addr, sizeof(addr)); // 绑定远端地址
   ```
   UDP 套接字调用 connect() 函数并不是要与对方建立连接，只是向 UDP 套接字注册对端 IP 地址和端口信息。之后每次调用 sendto() 函数只需要传输数据。也可以用 write() 和 read() 处理数据。
 
@@ -247,7 +247,7 @@ char *inet_ntoa(struct in_addr addr) // 成功时返回转换的字符串地址�
  */
 struct hostent *gethostbyaddr(const char *addr, socklen_t len, int family);
 ```
-说明 标志 数据类型
+
 ## 8、套接字的多种可选项
 ### 套接字多种可选项 `sock_type.c`
 <img src='./imgs/socket-options.png'>
