@@ -27,8 +27,11 @@ class Timespan : private Copyable {
   struct timespec ToTimespec() const;
   struct timeval ToTimeval() const;
 
+  void Swap(Timespan& other) {
+    std::swap(span_usec_, other.span_usec_);
+  }
   Timespan& operator=(Timespan timespan) {
-    Swap(*this, timespan);
+    Timespan(timespan).Swap(*this);
     return *this;
   }
   Timespan& operator+=(const Timespan& timespan) {
@@ -51,15 +54,11 @@ class Timespan : private Copyable {
   friend bool operator>=(Timespan lhs, Timespan rhs);
   friend bool operator==(Timespan lhs, Timespan rhs);
   friend bool operator!=(Timespan lhs, Timespan rhs);
-  friend void Swap(Timespan& lhs, Timespan& rhs);
 
  private:
   TimeDiff span_usec_;
 };
 
-inline void Swap(Timespan& lhs, Timespan& rhs) {
-  std::swap(lhs.span_usec_, rhs.span_usec_);
-}
 inline Timespan operator+(const Timespan& lhs, const Timespan& rhs) {
   return Timespan(lhs.span_usec_ + rhs.span_usec_);
 }

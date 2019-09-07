@@ -37,7 +37,6 @@ bool TimerHeap::AddTimer(Callback cb, Timestamp deadline, Timespan interval,
   return ret;
 }
 void TimerHeap::CancelTimer(TimerHeap::TimerID& id) {
-  std::size_t num_cancelled = 0;
   if (!heap_.empty() && active_timers_.find(id.id_) != active_timers_.end()) {
     RemoveTimer(id.timer_);
     id.id_ = 0;

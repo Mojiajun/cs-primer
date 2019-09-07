@@ -14,7 +14,8 @@ class Timestamp : private Copyable {
   Timestamp();
   explicit Timestamp(TimePoint usec);
   Timestamp(const Timestamp& timestamp);
-  Timestamp& operator=(Timestamp timestamp);
+  Timestamp& operator=(const Timestamp& timestamp);
+  void Swap(Timestamp& other);
   Timestamp& AddTimespan(const Timespan& timespan);
   void Update();
   Timespan Elapsed() const;
@@ -25,7 +26,6 @@ class Timestamp : private Copyable {
   }
 
  public:
-  friend void Swap(Timestamp& lhs, Timestamp& rhs);
   friend Timespan operator-(Timestamp lhs, Timestamp rhs);
   friend bool operator<(Timestamp lhs, Timestamp rhs);
   friend bool operator<=(Timestamp lhs, Timestamp rhs);
@@ -38,9 +38,6 @@ class Timestamp : private Copyable {
   TimePoint epoch_usec_;
 };
 
-inline void Swap(Timestamp& lhs, Timestamp& rhs) {
-  std::swap(lhs.epoch_usec_, rhs.epoch_usec_);
-}
 inline bool operator<(Timestamp lhs, Timestamp rhs) {
   return lhs.epoch_usec_ < rhs.epoch_usec_;
 }

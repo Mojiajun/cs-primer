@@ -9,7 +9,7 @@
 #include "timespan.hpp"
 #include "timestamp.hpp"
 
-class TimerHeap {
+class TimerHeap: private NotCopyable {
  public:
   class TimerObj;
   typedef std::function<void()> Callback;
