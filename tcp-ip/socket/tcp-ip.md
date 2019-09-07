@@ -276,12 +276,27 @@ int setsockopt(int sock, int level, int optname, const void *optval, socklen_t o
 ```
 ### SO_SNDBUF & SO_RCVBUF
 SO_SNDBUF 是输入缓冲大小相关可选项，SO_RCVBUF 是输出缓冲大小相关可选项。用这两个可选项既可以读取当前 IO 缓冲大小，也可以进行更改（`get_buf.c, set_buf.c`）。
+
 ### SO_REUSEADDR
 - Time-wait 状态
   - 先断开连接的（先发送 FIN 消息的）主机要经过 TIME_WAIT 状态，确保 TCP 连接正常关闭。此时相应的端口是正在使用的状态，调用 bind() 函数会发生错误。
 - 地址再分配
   - ACK 丢失，再次收到 FIN 包会重启 TIME_WAIT 计时器
   - 更改套接字的 SO_REUSEADDR 状态，可将 TIME_WAIT 状态下的套接字端口号重新分配给新的套接字
+
+### SO_LINGER
+SO_LINGER 选项用于控制 close() 系统调用在关闭 TCP 连接时的行为。默认情况下，当使用 close() 系统调用来关闭一个套接字时，close() 将立即返回，TCP 模板负责把该套接字对应的 TCP 发送缓冲区中残留的数据发送给对方。设置或获取 SO_LINGER 选项的值时，使用 linger 类型的结构体
+```
+#include <sys/socket.h>
+struct linger {
+  int l_onoff;  // 开启（非 0）或关闭（0）该选项
+  int l_linger; // 滞留时间
+};
+```
+根据 linger 结构体中两个成员变量的不同值，close() 系统调用可能产生如下 3 种行为之一：
+1. l_onoff 为 0。此时 SO_LINGER 选项不起作用
+2. l_onoff 不为 0，l_linger 为 0。此时 close() 系统调用立即返回，TCP 模块将丢弃被关闭的套接字对应的 TCP 发送缓冲区中残留的数据，同时给对方发送一个 RST 分节。这种情况给服务器提供了异常终止一个连接的方法
+3. l_onoff 不为 0，l_linger 大于 0。此时 close() 的行为取决于两个条件：一是被关闭的套接字对应的 TCP 发送缓冲区中是否还有残留的数据；二是该套接字是阻塞的，还是非阻塞。对于阻塞的套接字，close() 将等待一段长为 l_linger 的时间，直到 TCP 模块发送完所有残留数据并得到对方的确认。如果这段时间内 TCP 模块没有发送完残留数据并得到对方的确认，那么 close() 将发挥 -1 并设置 errno 为 EWOULDBLOCK。如果套接字是非阻塞的，close() 将立即返回，此时我们需要根据其返回值和 errno 来判断残留数据是否已经发送完毕。
 
 ### TCP_NODELAY
 - Nagle 算法
@@ -478,7 +493,7 @@ ssize_t recv(int sockfd, void *buf, size_t nbytes, int flags);
   |MSG_PEEK|验证输入缓冲中是否存在接受的数据||.|
   |MSG_DONTROUTE|传输过程和总不参照路由表，在本地网络中寻找目的地|.||
   |MSG_DONTWAIT|调用IO函数时不阻塞，用于使用非阻塞（Non-blocking）IO|.|.|
-  |MSG_WAITALL|防止函数返回，知道接收全部请求的字节数||.|
+  |MSG_WAITALL|防止函数返回，直到接收全部请求的字节数||.|
 
 - MSG_OOB：发送紧急消息
   - 督促数据接受对象尽快处理数据
