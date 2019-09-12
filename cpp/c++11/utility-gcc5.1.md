@@ -1,12 +1,12 @@
 # C++ Utility Library
 
-## `std::initlizer_list`
-`std::initializer_list<T>` 类型的对象是一个轻量级代理对象，它提供对常量类型对象数组的访问。
+## std::initlizer_list
+std::initializer_list<T> 类型的对象是一个轻量级代理对象，它提供对常量类型对象数组的访问。
 
-在以下情况会自动构造 `std::initializer_list` 对象
-1. 用花括号 `{}` 的方式初始化一个对象且该对象有接受 `std::initializer_list` 参数的构造函数
-2. 用花括号 `{}` 的方式给一个对象赋值或者函数返回且该对象重载了接受 `initializer_list` 参数的赋值运算符
-3. 在 `Range-based for loop` 用于指定范围
+在以下情况会自动构造 std::initializer_list 对象
+1. 用花括号 {} 的方式初始化一个对象且该对象有接受 std::initializer_list 参数的构造函数
+2. 用花括号 {} 的方式给一个对象赋值或者函数返回且该对象重载了接受 std::initializer_list 参数的赋值运算符
+3. 在 Range-based for loop 用于指定范围
 
 其底层实现是一个数组。
 ```
@@ -34,7 +34,7 @@
 66       constexpr initializer_list() noexcept
 67       : _M_array(0), _M_len(0) { }
 ```
-主要由编译器调用。主要有 begin、end 和 size 函数接口
+主要由编译器调用。主要有 begin()、end() 和 size() 函数接口
 ```
 /// @file initializer_list
 69       // Number of elements.
@@ -52,10 +52,10 @@
 ```
 
 ## Data、time
-### `std::chrono::time_point`
+### std::chrono::time_point
 TODO
 
-## `std::move()`
+## std::move()
 move() 获得一个右值引用
 ```
 /// @file include/bits/move.h
@@ -64,7 +64,7 @@ move() 获得一个右值引用
 101     move(_Tp&& __t) noexcept
 102     { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
 ```
-move() 的函数参数 `_Tp&&` 是一个指向模板类型参数的右值引用。通过引用折叠，此参数可以与任何类型的实参匹配。特别是，我们既可以传递给 move() 一个左值，也可以传递给它一个右值。
+move() 的函数参数 _Tp&& 是一个指向模板类型参数的右值引用。通过引用折叠，此参数可以与任何类型的实参匹配。特别是，我们既可以传递给 move() 一个左值，也可以传递给它一个右值。
 
 首先看以下 std::remove_reference 的定义
 ```
@@ -81,34 +81,34 @@ move() 的函数参数 `_Tp&&` 是一个指向模板类型参数的右值引用�
 1583     struct remove_reference<_Tp&&>
 1584     { typedef _Tp   type; };
 ```
-`std::remove_reference` 是去除引用：如果类型 `_Tp` 是引用类型（`_Tp&` 或 `_Tp&&`），则提供成员 typedef 类型，该类型是由 `_Tp` 引用的类型。否则类型为 `_Tp`。
+std::remove_reference 是去除引用：如果类型 _Tp 是引用类型（_Tp& 或 _Tp&&），则提供成员 typedef 类型，该类型是由 _Tp 引用的类型。否则类型为 _Tp。
 
 通常我们不能将一个右值引用绑定到一个左值上，但是C++在正常绑定规则之外定义了两个例外规则，允许这种绑定：
 - 当我们将一个左值传递给函数的右值引用参数，且此右值引用指向模板类型参数时，编译器推断模板类型参数为实参的左值引用类型。
 - 如果我们创建一个引用的引用，则这些引用形成了“折叠”（只能应用于间接创建的引用的引用，如类型别名或模板参数）
-  - `X& &`、`X& &&`、`X&& &` 都会折叠成 `X&`
-  - `X&& &&` 折叠成 `X&&`
+  - X& &、X& &&、X&& & 都会折叠成 X&
+  - X&& && 折叠成 X&&
 
 这个规则导致了两个重要的结果：
 - 如果一个函数参数是一个指向模板类型参数的右值引用，则它可以被绑定到一个左值；且
-- 如果实参是一个左值，则推断出的模板实参类型将是一个左值引用，且函数参数将被实例化为一个普通的左值引用参数（`T&`）
+- 如果实参是一个左值，则推断出的模板实参类型将是一个左值引用，且函数参数将被实例化为一个普通的左值引用参数（T&）
 
 因此 std::move() 的工作如下：
-1. 传入右值，如 `auto s2 = std::move(string("bye!"));`
-   - 推断出的 `_Tp` 的类型为 `string`
-   - 因此，`remove_reference` 用 `string` 进行实例化
-   - `remove_reference<string>` 的 type 成员是 `string`
-   - move() 的返回类型是 `string&&`
-   - move() 的函数参数 `__t` 的类型为 `string&&`
-2. 传入左值，如 `auto s1 = string("bye); auto s2 = std::move(s1);`
-   - 推断出的 `_Tp` 的类型为 `string&`
-   - 因此，`remove_reference` 用 `string&` 进行实例化
-   - `remove_reference<string>` 的 type 成员是 `string`
-   - move() 的返回类型是 `string&`
-   - move() 的函数参数 `__t` 的类型为 `string& &&`，会折叠为 `string&`
+1. 传入右值，如 auto s2 = std::move(string("bye!"));
+   - 推断出的 _Tp 的类型为 string
+   - 因此，remove_reference 用 string 进行实例化
+   - remove_reference\<string> 的 type 成员是 string
+   - move() 的返回类型是 string&&
+   - move() 的函数参数 __t 的类型为 string&&
+2. 传入左值，如 auto s1 = string("bye!"); auto s2 = std::move(s1);
+   - 推断出的 _Tp 的类型为 string&
+   - 因此，remove_reference 用 string& 进行实例化
+   - remove_reference\<string> 的 type 成员是 string
+   - move() 的返回类型是 string&
+   - move() 的函数参数 __t 的类型为 string& &&，会折叠为 string&
 
-## `std::swap`
-通过移动类交换两个变量。它要求传入的变量是可以移动的（具有移动构造函数和重载移动赋值运算符）。宏定义 `_GLIBCXX_MOVE` 在C++11展开为 std::move()。
+## std::swap()
+通过移动类交换两个变量。它要求传入的变量是可以移动的（具有移动构造函数和重载移动赋值运算符）。宏定义 _GLIBCXX_MOVE 在 C++11 展开为 std::move()。
 ```
 /// @file include/bits/move.h
 174   template<typename _Tp>
@@ -188,7 +188,7 @@ class Test {
   unsigned char* data_;
 };
 ```
-我们重载 `operator new` 和 `operator delete` 输出分配或释放内存操作
+我们重载 operator new() 和 operator delete() 输出分配或释放内存操作
 ```
 void* operator new(size_t size) {
   printf("allocate memory\n");
@@ -249,8 +249,8 @@ Test Dtor
 -Free Memory
 ```
 
-## `std::forward`
-是为了支持C++11转发。某些函数需要将其一个或多个实参连同类型不变地转发给其他函数，在此情况下，我们需要保持被转发实参的所有性质，包括实参类型是否是 `const` 的以及实参是左值还是右值。需要注意的是，std::forward() 必须通过显式模板实参来调用。std::forward() 返回该显式实参类型的右值引用。通过其返回类型上的引用折叠，std::forward() 可以保持给定实参的左值/右值属性。
+## std::forward()
+是为了支持 C++11 转发。某些函数需要将其一个或多个实参连同类型不变地转发给其他函数，在此情况下，我们需要保持被转发实参的所有性质，包括实参类型是否是 const 的以及实参是左值还是右值。需要注意的是，std::forward() 必须通过显式模板实参来调用。std::forward() 返回该显式实参类型的右值引用。通过其返回类型上的引用折叠，std::forward() 可以保持给定实参的左值/右值属性。
 ```
 /// @file include/bits/move.h
 74   template<typename _Tp>
