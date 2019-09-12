@@ -6,7 +6,7 @@
 - 拷贝赋值运算符递增右侧运算对象的计数器，递减左侧运算对象的计数器。如果左侧运算对象的计数器变为 0，意味着它的共享状态没有用户了，拷贝运算符就必须销毁状态
 - 计数器一般保存在动态内存中。当创建一个对象时，也分配一个新的计数器。当拷贝或赋值对象时，拷贝指向计数器的指针。使用这种方法，副本和原对象都会指向相同的计数器
 
-## `std::shared_ptr`
+## std::shared_ptr
 ```
 /// @file bits/shared_ptr.h
 92   template<typename _Tp>
@@ -16,10 +16,10 @@
 96         using _Convertible
 97           = typename enable_if<is_convertible<_Ptr, _Tp*>::value>::type;
 ```
-模板类 `shared_ptr` 继承于 `__shared_ptr`，具体的实现都在基类
+模板类 shared_ptr 继承于 __shared_ptr，具体的实现都在基类
 
 ### 构造函数
-需要注意的是，`shared_ptr( Y* ptr )` 是 `explicit`。
+需要注意的是，shared_ptr( Y* ptr ) 是 explicit。
 ```
 /// TODO
 ```
@@ -30,7 +30,7 @@
 ### 接口
 在基类中定义
 
-### `__shared_ptr`
+### __shared_ptr
 有两个数据域，一个存放对象指针，一个存放引用计数相关的结构。
 ```
 /// @file bits/shared_ptr_base.h
@@ -50,7 +50,7 @@
 ```
 
 #### 构造函数
-只介绍形参是 `weak_ptr` 的构造函数，该函数用于实现 `weak_ptr::lock()`。当 `_M_refcount._M_get_use_count()` 返回 0（没有 `shared_ptr` 指针指向，被管理的对象已经释放）时，`_M_ptr` 被设置为 `nullptr`。
+只介绍形参是 weak_ptr 的构造函数，该函数用于实现 weak_ptr::lock()。当 \_M_refcount.\_M_get_use_count() 返回 0（没有 shared_ptr 指针指向，被管理的对象已经释放）时，_M_ptr 被设置为 nullptr，表示不能提升。
 ```
 1144       // This constructor is used by __weak_ptr::lock() and
 1145       // shared_ptr::shared_ptr(const weak_ptr&, std::nothrow_t).
@@ -62,7 +62,7 @@
 ```
 
 #### 析构函数
-使用默认析构函数，对象的管理在 `__shared_count<_Lp>::_M_refcount` 实现
+使用默认析构函数，对象的管理在 __shared_count<_Lp>::_M_refcount 实现
 ```
 /// @file bits/shared_ptr_base.h
 925       ~__shared_ptr() = default;
@@ -73,7 +73,7 @@
 /// @file bits/shared_ptr_base.h
 1020       void
 1021       reset() noexcept
-1022       { __shared_ptr().swap(*this); }
+1022       { __shared_ptr().swap(*this); } // swap 用法值得学习
 1023 
 1024       template<typename _Tp1>
 1025         void
@@ -142,8 +142,8 @@
 1088         { return _M_refcount._M_less(__rhs._M_refcount); }
 ```
 
-### `__shared_count`
-`__shared_count` 不仅仅存放引用计数器，还**负责管理对象的释放**。只有一个数据域 `_M_pi`，是模板类 `_Sp_counted_base` 类型的指针。`_Sp_counted_base` 是一个基类，其派生类有 `_Sp_counted_ptr`（只有管理对象的指针，默认用 `delete` 释放管理的函数）、`_Sp_counted_deleter`（除了管理对象的指针，还有善后函数 deleter，在析构时调用 `deleter()`，不再调用 `delete`。相当于用用户指定非方式释放对象）或者 `_Sp_counted_ptr_inplace`（`std::make_shared` 申请的对象）。所以指针 `_M_pi` 可能指向不同的派生类。
+### __shared_count
+__shared_count 不仅仅存放引用计数器，还**负责管理对象的释放**。只有一个数据域 \_M_pi，是模板类 \_Sp_counted_base 类型的指针。\_Sp_counted_base 是一个基类，其派生类有 `_Sp_counted_ptr`（只有管理对象的指针，默认用 `delete` 释放管理的函数）、\_Sp_counted_deleter（除了管理对象的指针，还有善后函数 deleter()，在析构时调用 deleter()，不再调用 delete 释放对象。相当于用用户指定非方式释放对象）或者 \_Sp_counted_ptr_inplace（std::make_shared() 申请的对象）。所以指针 \_M_pi 可能指向不同的派生类。
 ```
 /// @file bits/shared_ptr_base.h
 561   template<_Lock_policy _Lp>
@@ -173,7 +173,7 @@ class Foo {
 
 std::shared_ptr<Foo> ptr(new Foo());
 ```
-`__shared_count` 会执行如下构造函数，构造函数完成后 `_M_pi` 指向的是 `_Sp_counted_ptr` 类型的对象。
+__shared_count 会执行如下构造函数，构造函数完成后 \_M_pi 指向的是 \_Sp_counted_ptr 类型的对象。
 ```
 /// @file bits/shared_ptr_base.h
 568       template<typename _Ptr>
@@ -202,7 +202,7 @@ struct Deleter {
 
 std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 ```
-`__shared_count` 最终会执行如下构造函数，构造函数完成后 `_M_pi` 指向的是 `_Sp_counted_deleter` 类型的对象。
+__shared_count 最终会执行如下构造函数，构造函数完成后 \_M_pi 指向的是 \_Sp_counted_deleter 类型的对象。
 ```
 /// @file bits/shared_ptr_base.h
 588       template<typename _Ptr, typename _Deleter, typename _Alloc>
@@ -225,7 +225,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 605             }
 606         }
 ```
-当用 std::make_shared() 函数创建一个 std::shared_ptr 对象的时候，会执行如下构造函数，构造函数完成后 `_M_pi` 指向的是 `_Sp_counted_ptr_inplace` 类型的对象。
+当用 std::make_shared() 函数创建一个 std::shared_ptr 对象的时候，会执行如下构造函数，构造函数完成后 \_M_pi 指向的是 \_Sp_counted_ptr_inplace 类型的对象。
 ```
 /// @file bits/shared_ptr_base.h
 608       template<typename _Tp, typename _Alloc, typename... _Args>
@@ -243,7 +243,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 620           __guard = nullptr;
 621         }
 ```
-拷贝构造函数不分配引用计数空间，而是拷贝传入对象的 `_M_pi`，并且将计数加 1
+拷贝构造函数不分配引用计数空间，而是拷贝传入对象的 \_M_pi，并且将计数加 1
 ```
 /// @file bits/shared_ptr_base.h
 662       __shared_count(const __shared_count& __r) noexcept
@@ -253,7 +253,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 666           _M_pi->_M_add_ref_copy();
 667       }
 ```
-拷贝赋值运算符增加右侧对象的引用计数，减少左侧的引用计数，如果左侧引用计数变为 0，释放管理的对象（`_M_pi->_M_release()`）
+拷贝赋值运算符增加右侧对象的引用计数，减少左侧的引用计数，如果左侧引用计数变为 0，调用 \_M_pi->\_M_release() 释放管理的对象
 ```
 /// @file bits/shared_ptr_base.h
 669       __shared_count&
@@ -273,7 +273,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 ```
 
 #### 析构函数
-掉用虚函数 `_M_release()`，不同派生类有其自己的实现
+调用虚函数 \_M_release()，不同派生类有其自己的实现
 ```
 /// @file bits/shared_ptr_base.h
 656       ~__shared_count() noexcept
@@ -283,8 +283,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 660       }
 ```
 
-### `_Sp_counted_base`
-是一个基类，有两个数据成员 `_M_use_count` 和 `_M_weak_count`，分别表示有多少个 `shared_ptr` 和 `weak_ptr` 指向管理的对象（如果 `_M_use_count` 不为 0，`_M_weak_count` 额外需要加 1）。此外引用计数的相关操作是原子操作。
+### _Sp_counted_base
+是一个基类，有两个数据成员 \_M_use_count 和 \_M_weak_count，分别表示有多少个 shared_ptr 和 weak_ptr 指向管理的对象（如果 \_M_use_count 不为 0，\_M_weak_count 额外需要加 1）。此外引用计数的相关操作是原子操作。
 ```
 /// @file bits/shared_ptr_base.h
 107   template<_Lock_policy _Lp = __default_lock_policy>
@@ -297,7 +297,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 208       _Atomic_word  _M_weak_count;    // #weak + (#shared != 0)
 209     };
 ```
-主要定义定义引用计数的递增函数和递减函数、释放资源的函数 `_M_release()` 以及三个虚函数 `_M_dispose()` 、`_M_destroy()` 和 `_M_get_deleter()`。
+主要定义定义引用计数的递增函数和递减函数、释放资源的函数 \_M_release() 以及三个虚函数 \_M_dispose()、\_M_destroy() 和 \_M_get_deleter()。
 
 #### 构造函数
 只有无参构造函数，无法指定引用计数。引用计数都必须通过定义的函数接口改变，另外，它的拷贝构造函数和赋值操作是删除的。
@@ -321,8 +321,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 117       { }
 ```
 
-#### 资源释放`_M_release()` 和 `_M_weak_release()`
-`_M_release()` 首先引用计数 `_M_use_count`减 1（`__exchange_and_add_dispatch()`，原子操作，将第二个参数加到第一个参数，返回返回第一个参数的旧值），如果引用计数变为 0，执行虚函数 `_M_dispose()` 析构对象，释放内存。另外将 `_M_weak_count` 减 1，如果变为 0，执行虚函数 `_M_destroy()` 释放引用计数本身对象。
+#### 资源释放 \_M_release() 和 \_M_weak_release()
+\_M_release() 首先引用计数 \_M_use_count减 1（__exchange_and_add_dispatch()，原子操作，将第二个参数加到第一个参数，返回返回第一个参数的旧值），如果引用计数变为 0，调用虚函数 \_M_dispose() 析构对象，释放内存。另外将 \_M_weak_count 减 1，如果变为 0，执行虚函数 \_M_destroy() 释放引用计数本身对象。
 ```
 /// @file bits/shared_ptr_base.h
 142       void
@@ -352,7 +352,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 169           }
 170       }
 ```
-`_M_weak_release()` 是跟 `weak_ptr` 相关的操作。`_M_weak_count` 减 1，如果变为 0，调用 `_M_destroy()` 释放引用计数本身对象。
+\_M_weak_release() 是跟 weak_ptr 相关的操作。\_M_weak_count 减 1，如果变为 0，调用 \_M_destroy() 释放引用计数本身对象。
 ```
 /// @file bits/shared_ptr_base.h
 176       void
@@ -374,10 +374,10 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 192           }
 193       }
 ```
-`_M_weak_count = #weak + (#shared != 0)` 为了确保 `shared_ptr` 管理的对象析构了，`weak_ptr` 仍然可以使用（引用计数对象没有被析构）。例如当出现`_M_use_count = 1, _M_weak_count = 1` 的时候执行 `_M_release()`，管理的对象会释放，引用计数对象也会被释放，仍然存在的一个 `weak_ptr` 将不能使用。
+_M_weak_count = #weak + (#shared != 0) 为了确保 shared_ptr 管理的对象析构了，weak_ptr 仍然可以使用（引用计数对象没有被析构）。例如当出现 \_M_use_count = 1, \_M_weak_count = 1 的时候执行 \_M_release()，管理的对象会释放，引用计数对象也会被释放，仍然存在的一个 weak_ptr 将不能使用。
 
-#### `_M_dispose()` 和 `_M_destroy()`
-`_M_dispose` 用于当 `_M_use_count` 减为 0 的时候，释放 `this` 管理的对象。`_M_destroy` 用于当 `_M_weak_count` 减为0的时候，释放 `this` 对象。
+#### \_M_dispose() 和 \_M_destroy()
+\_M_dispose() 用于当 \_M_use_count 减为 0 的时候，释放自己 this 管理的对象（管理的动态内存）。\_M_destroy() 用于当 \_M_weak_count 减为 0 的时候，释放 this 对象（用于引用计数的动态内存）。
 ```
 /// @file bits/shared_ptr_base.h
 119       // Called when _M_use_count drops to zero, to release the resources
@@ -391,8 +391,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 127       { delete this; }
 ```
 
-#### `_M_add_ref_copy()` 和 `_M_weak_add_ref()`
-`_M_add_ref_copy()` 用于将 `_M_use_count` 加 1，`_M_weak_add_ref()` 用于将`_M_weak_count` 加 1
+#### \_M_add_ref_copy() 和 \_M_weak_add_ref()
+\_M_add_ref_copy() 用于将 \_M_use_count 加 1，\_M_weak_add_ref() 用于将 \_M_weak_count 加 1
 ```
 /// @file bits/shared_ptr_base.h
 132       void
@@ -404,7 +404,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 174       { __gnu_cxx::__atomic_add_dispatch(&_M_weak_count, 1); }
 ```
 
-#### `_M_get_use_count()` 和 `_M_get_deleter()`
+#### \_M_get_use_count() 和 _M_get_deleter()
 ```
 /// @file bits/shared_ptr_base.h
 129       virtual void*
@@ -419,8 +419,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 201       }
 ```
 
-#### `_M_add_ref_lock()` 和 `_M_add_ref_lock_nothrow()`
-这两个函数用于 `weak_ptr::lock()` 操作。下面仅仅是一部分，还有其他偏特化版本。当`_M_use_count` 为 0，是提升失败
+#### \_M_add_ref_lock() 和 \_M_add_ref_lock_nothrow()
+这两个函数用于 weak_ptr::lock() 操作。下面仅仅是一部分，还有其他偏特化版本。当 \_M_use_count 为 0，是提升失败
 ```
 /// @file bits/shared_ptr_base.h
 221   template<>
@@ -451,8 +451,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 276     }
 ```
 
-#### `_M_dispose()` 、`_M_destroy()` 和 `_M_get_deleter()` 在派生类中的实现
-在 `_Sp_counted_ptr` 中的实现
+#### \_M_dispose()、\_M_destroy() 和 \_M_get_deleter() 在派生类中的实现
+在 \_Sp_counted_ptr 中的实现
 ```
 /// @file bits/shared_ptr.h
 364   template<typename _Ptr, _Lock_policy _Lp>
@@ -472,7 +472,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 381       _M_get_deleter(const std::type_info&) noexcept
 382       { return nullptr; } // 没有
 ```
-在 `_Sp_counted_deleter` 中的实现
+在 \_Sp_counted_deleter 中的实现
 ```
 /// @file bits/shared_ptr.h
 432   template<typename _Ptr, typename _Deleter, typename _Alloc, _Lock_policy _Lp>
@@ -504,7 +504,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 486         return nullptr;
 487 #endif
 ```
-在 `_Sp_counted_ptr_inplace` 中的实现
+在 \_Sp_counted_ptr_inplace 中的实现
 ```
 /// @file bits/shared_ptr.h
 498   template<typename _Tp, typename _Alloc, _Lock_policy _Lp>
@@ -545,8 +545,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 552       }
 ```
 
-## `std::weak_ptr`
-不控制所指向对象生命周期的智能指针，它指向一个 `shared_ptr` 管理的对象
+## std::weak_ptr
+不控制所指向对象生命周期的智能指针，它指向一个 shared_ptr 管理的对象
 ```
 /// @file bits/shared_ptr.h
 469   template<typename _Tp>
@@ -556,7 +556,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 473         using _Convertible
 474           = typename enable_if<is_convertible<_Ptr, _Tp*>::value>::type;
 ```
-具体实现在基类 `__weak_ptr<_Tp>` 中
+具体实现在基类 __weak_ptr<_Tp> 中
 
 ### 构造函数
 /// TODO
@@ -564,7 +564,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 ### 析构函数
 没有显式定义的析构函数
 
-### `lock`
+### lock()
 ```
 /// @file bits/shared_ptr.h
 525       shared_ptr<_Tp>
@@ -572,7 +572,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 527       { return shared_ptr<_Tp>(*this, std::nothrow); }
 ```
 
-### `__weak_ptr`
+### __weak_ptr
 有两个数据域，一个存放对象指针，一个存放引用计数相关的结构。
 ```
 /// @file bits/shared_ptr_base.h
@@ -626,8 +626,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 1454       { __weak_ptr().swap(*this); }
 ```
 
-### `__weak_count`
-只有一个数据成员 `_M_pi`，是 `_Sp_counted_base` 类型，和 `__shared_count` 一样
+### __weak_count
+只有一个数据成员 \_M_pi，是 \_Sp_counted_base 类型，和 \__shared_count 一样
 ```
 /// @file bits/shared_ptr_base.h
 724   template<_Lock_policy _Lp>
@@ -638,7 +638,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 ```
 
 #### 构造函数
-需要判断 `_M_pi` 的有效性（是否为空指针）
+需要判断 \_M_pi 的有效性（是否为空指针）
 ```
 /// @file bits/shared_ptr_base.h
 727     public:
@@ -674,7 +674,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 753       }
 ```
 
-#### `_M_get_use_count()`
+#### \_M_get_use_count()
 ```
 /// @file bits/shared_ptr_base.h
 797       long
@@ -682,8 +682,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 799       { return _M_pi != nullptr ? _M_pi->_M_get_use_count() : 0; }
 ```
 
-## `std::enable_shared_from_this`
-拥有一个 `weak_ptr`
+## std::enable_shared_from_this
+拥有一个 weak_ptr
 ```
 /// @file bits/shared_ptr.h
 556   template<typename _Tp>
@@ -720,7 +720,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 596     };
 ```
 
-### `shared_from_this()`
+### shared_from_this()
 ```
 /// @file bits/shared_ptr.h
 570     public:
@@ -733,7 +733,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 577       { return shared_ptr<const _Tp>(this->_M_weak_this); }
 ```
 
-## 管理单个对象的 `std::uniqe_ptr`
+## 管理单个对象的 std::uniqe_ptr
 拷贝赋值构造函数和赋值运算符是删除的
 ```
 @file bits/unique_ptr.h
@@ -814,12 +814,12 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 353       }
 ```
 
-## 管理数组的`std::uniqe_ptr`
-增加 `operator[]` 方法
+## 管理数组的std::uniqe_ptr
+增加 operator[] 方法
 
 ## 其他函数
-### `std::make_shared()`
-调用 `allocate_shared` 构造一个 `shared_ptr`
+### std::make_shared()
+调用 allocate_shared 构造一个 shared_ptr
 ```
 /// @file bits/shared_ptr.h
 609   template<typename _Tp, typename _Alloc, typename... _Args>
@@ -840,8 +840,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 631     }
 ```
 
-### `hash`
-根据 `get()` 返回的指针进行 hash
+### hash
+根据 get() 返回的指针进行 hash
 ```
 /// @file bits/shared_ptr.h
 634   template<typename _Tp>
@@ -854,8 +854,8 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 641     };
 ```
 
-### `shared_ptr` 指针转换
-创建新的 `std::shared_ptr` 的实例，将管理对象的类型从 `_Tp1` 转换成 `_Tp`。底层仍然共享管理的对象
+### shared_ptr 指针转换
+创建新的 std::shared_ptr 的实例，将管理对象的类型从 _Tp1 转换成 _Tp。底层仍然共享管理的对象
 ```
 /// @file bits/shared_ptr.h
 444   template<typename _Tp, typename _Tp1>
@@ -878,7 +878,7 @@ std::shared_ptr<Foo> ptr(new Foo(-1), Deleter());
 461     }
 ```
 
-## `std::shared_ptr<void>` 工作方式
+## std::shared_ptr<void> 工作方式
 下面的方式是可以正常工作的
 ```
 class Foo {
@@ -906,12 +906,12 @@ int main() {
   return 0;
 }
 ```
-即使定义的时候，`std::shared_ptr` 的类模板类型是 `void` 类型，我们在 reset() 函数中传入一个 Foo 类型的指针，`std::shared_ptr` 也可以自动地析构 Foo 的对象。如果是 `std::shared_ptr<int>` 没有这种用法。
+即使定义的时候，std::shared_ptr 的类模板类型是 void 类型，我们在 reset() 函数中传入一个 Foo 类型的指针，std::shared_ptr 也可以自动地析构 Foo 的对象。如果是 std::shared_ptr\<int> 没有这种用法。
 ```
 shared_ptr<int> ptr;
 ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initialization
 ```
-根据分析的继承关系，`shared_ptr` 继承于 `__shared_ptr`，回头看一下 `__shared_ptr` 的实现
+根据分析的继承关系，shared_ptr 继承于 __shared_ptr，回头看一下 __shared_ptr 的实现
 ```
 /// @file bits/shared_ptr_base.h
  866   template<typename _Tp, _Lock_policy _Lp>
@@ -928,7 +928,7 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 1175       _Tp*                 _M_ptr;         // Contained pointer.
 1176       __shared_count<_Lp>  _M_refcount;    // Reference counter.
 ```
-可以看到，`__shared_ptr::_M_ptr` 跟模板参数类型相关，而 `__shared_ptr::_M_refcount` 跟模板参数是无关的。所以当模板参数是 `void` 的时候，`void` 指针可以指向任何对象，而其他指针则不行。根据前面的分析 `_M_refcount` 是负责释放管理的对象的，那即使定义为 `std::shared_ptr<void>`，也可以释放对象，它是如何做到的？在回头看一下 `__shared_count` 的定义
+可以看到，__shared_ptr::\_M_ptr 跟模板参数类型相关，而 __shared_ptr::\_M_refcount 跟模板参数是无关的。所以当模板参数是 void 的时候，void 指针可以指向任何对象，而其他指针则不行。根据前面的分析 \_M_refcount 是负责释放管理的对象的，那即使定义为 std::shared_ptr\<void>，也可以释放对象，它是如何做到的？在回头看一下 __shared_count 的定义
 ```
 /// @file bits/shared_ptr_base.h
 561   template<_Lock_policy _Lp>
@@ -939,7 +939,7 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 720       _Sp_counted_base<_Lp>*  _M_pi;
 721     };
 ```
-`_Sp_counted_base` 是一个基类，只有两个表示引用计数的成员
+\_Sp_counted_base 是一个基类，只有两个表示引用计数的成员
 ```
 /// @file bits/shared_ptr_base.h
 107   template<_Lock_policy _Lp = __default_lock_policy>
@@ -952,9 +952,9 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 208       _Atomic_word  _M_weak_count;    // #weak + (#shared != 0)
 209     };
 ```
-如前面所说，`_Sp_counted_base` 的 `_M_release()` 会调用派生类的 `_M_dispose()` 进行对象的释放。并且 `__shared_count` 会根据不同的传入参数，创建不同的 `_Sp_counted_base` 对象。接下来分析三个派生类的构造函数。
+如前面所说，_Sp_counted_base 的 \_M_release() 会调用派生类的 \_M_dispose() 进行对象的释放。并且 __shared_count 会根据不同的传入参数，创建不同的 \_Sp_counted_base 对象。接下来分析三个派生类的构造函数。
 
-首先是 `_Sp_counted_ptr`
+首先是 \_Sp_counted_ptr
 ```
 /// @file bits/shared_ptr.h
 364   template<typename _Ptr, _Lock_policy _Lp>
@@ -969,7 +969,7 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 388       _Ptr             _M_ptr;
 389     };
 ```
-然后是 `_Sp_counted_deleter`
+然后是 \_Sp_counted_deleter
 ```
 /// @file bits/shared_ptr.h
 432   template<typename _Ptr, typename _Deleter, typename _Alloc, _Lock_policy _Lp>
@@ -1003,7 +1003,7 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 491       _Impl _M_impl;
 492     };
 ```
-最后是 `_Sp_counted_ptr_inplace`
+最后是 \_Sp_counted_ptr_inplace
 ```
 /// @file bits/shared_ptr.h
 498   template<typename _Tp, typename _Alloc, _Lock_policy _Lp>
@@ -1034,7 +1034,7 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 523               std::forward<_Args>(__args)...); // might throw
 524         }
 ```
-可以知道，三个派生类都是模板类，模板参数 `_Ptr` 就是实际管理的对象的类型指针。所以即使在定义 `std::shared_ptr` 指定类模板参数为 `void`。可以看到 reset() 函数也是模板函数
+可以知道，三个派生类都是模板类，模板参数 _Ptr 就是实际管理的对象的类型指针。所以即使在定义 std::shared_ptr 指定类模板参数为 void。可以看到 reset() 函数也是模板函数
 ```
 1024       template<typename _Tp1>
 1025         void
@@ -1045,4 +1045,4 @@ ptr.reset(new Foo(-1)); // cannot convert ‘Foo*’ to ‘int*’ in initializa
 1030           __shared_ptr(__p).swap(*this);
 1031         }
 ```
-不仅如此，`__shared_ptr`、`__shared_count` 的有参构造函数都是模板函数。所以通过模板推断，可以推断出 reset() 传入指针的类型，然后传入相应的派生类，因此可以正常析构。
+不仅如此，__shared_ptr、__shared_count 的有参构造函数都是模板函数。所以通过模板推断，可以推断出 reset() 传入指针的类型，然后传入相应的派生类，因此可以正常析构。
