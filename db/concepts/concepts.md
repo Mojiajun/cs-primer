@@ -82,7 +82,7 @@ where instructor.dept_name = department.dept_name
 select A1, A2, ..., An
 from r1 natural join r2 natural join ... natural join rm;
 ```
-#### 只考虑那些在连个关系模式中都出现的属性上取值相同的元组对
+#### 只考虑那些在两个关系模式中都出现的属性上取值相同的元组对
 ```
 // tabel r1              // tabel r2
 id  name  code       |   id  grade  code
