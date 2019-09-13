@@ -172,9 +172,6 @@ sk_buff 是 Linux 内核用于管理网络数据包的缓冲结构，当其在�
 ```
 <img src='./imgs/sk-buff-list.png'>
 
-
-
-
 ### SLAB 分配器设置
 有两个跟 sk_buff 对象分配有关的 SLAB（可以在 /sys/kernel/slab 中找到），他们在 skb_init() 中被创建
 ```
@@ -194,11 +191,11 @@ sk_buff 是 Linux 内核用于管理网络数据包的缓冲结构，当其在�
 3272                         NULL);
 3273 }
 ```
-skbuff_head_cache 一次分配一个 sk_buff 对象，多数情况下都是从这里分配一个 sk_buff 对象。skbuff_fclone_cache 用于处理在分配 sk_buff 就可以预见可能被克隆的情况，一次就分配两个对象和一个引用计数。多分出的一个 sk_buff 对象用于处理将来的克隆操作。引用计数表示分配两个对象被使用的数目，取值 0，1，2。
+skbuff_head_cache 分配器一次分配一个 sk_buff 对象，多数情况下都是从这里分配一个 sk_buff 对象。skbuff_fclone_cache 分配器用于处理在分配 sk_buff 就可以预见可能被克隆的情况，一次就分配两个对象和一个引用计数。多分出的一个 sk_buff 对象用于处理将来的克隆操作。引用计数表示分配两个对象被使用的数目，取值 0，1，2。
 
 ### 分配 SKB
 #### alloc_skb()
-alloc_skb() 是对函数 `__alloc_skb()` 的包装。从 skbuff_head_cache 中分配对象
+alloc_skb() 是对函数 \__alloc_skb() 的包装。从 skbuff_head_cache 中分配对象
 ```
 /// @file include/linux/skbuff.h
 730 static inline struct sk_buff *alloc_skb(unsigned int size,
@@ -211,8 +208,8 @@ alloc_skb() 是对函数 `__alloc_skb()` 的包装。从 skbuff_head_cache 中�
 - size：数据缓冲区的大小，将来用于存放各种头部、数据
 - priority：SLAB 分配方式
 
-#### `__alloc_skb()`
-`__alloc_skb()` 支持从 skbuff_head_cache 或 skbuff_fclone_cache 中分配对象，有 flag 控制。参数 node 用于支持 NUMA（忽略）
+#### \__alloc_skb()
+\__alloc_skb() 支持从 skbuff_head_cache 或 skbuff_fclone_cache 中分配对象，有 flag 控制。参数 node 用于支持 NUMA（忽略）
 ```
 /// @file net/core/skbuff.c
 200 struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
@@ -338,7 +335,7 @@ alloc_skb() 是对函数 `__alloc_skb()` 的包装。从 skbuff_head_cache 中�
 643     __kfree_skb(skb); // 引用计数减为0，回收sk_buff
 644 }
 ```
-`__kfree_skb()` 函数比较简单
+\__kfree_skb() 函数比较简单
 ```
 /// @file net/core/skbuff.c
 620 void __kfree_skb(struct sk_buff *skb)
@@ -450,7 +447,7 @@ skb_clone() 只拷贝 sk_buff 对象而不拷贝数据缓冲区。当某些“�
 906     return __skb_clone(n, skb); // 拷贝成员
 907 }
 ```
-调用 `__skb_clone()` 拷贝成员
+调用 \__skb_clone() 拷贝成员
 ```
 /// @file net/core/skbuff.c
 756 static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
