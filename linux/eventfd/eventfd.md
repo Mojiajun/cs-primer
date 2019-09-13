@@ -6,34 +6,34 @@ eventfd 是 Linux 为用户程序提供的定时器接口。该接口将定时�
 #include <sys/eventfd.h>
 int eventfd(unsigned int initval, int flags);
 ```
-eventfd() 创建一个 eventfd_ctx 对象，可以被应用程序用作事件等待和通知机制。该对象包含有内核维护的一个 8 字节无符号整数的计数器，在创建时可以通过 initval 指定初始值。
+eventfd(2) 创建一个 eventfd_ctx 对象（后面介绍），可以被应用程序用作事件等待和通知机制。该对象包含有内核维护的一个 8 字节无符号整数的计数器，在创建时通过 initval 参数指定初始值。
 
-flags 用于指定标志，可以是以下标识或组合（位或）
+flags 用于指定标志，可以是以下标识或组合（按位或）
 - EFD_CLOEXEC：等同于 O_CLOEXEC
 - EFD_NONBLOCK：非阻塞模式，等同于 O_NONBLOCK
-- EFD_SEMAPHORE：支持信号量语义的 read()，每次读都递减 1
+- EFD_SEMAPHORE：支持信号量语义的 read(2)，每次读都递减 1
 
-关于 eventfd 文件描述符的一个关键点是它可以像使用 select，poll 或 epoll 一样监视任何其他文件描述符。 这意味着应用程序可以同时监视“传统”文件的准备情况以及支持 eventfd 接口的其他内核机制的准备情况。
+关于 eventfd 文件描述符的一个关键点是它可以像使用 select(2)，poll(2) 或 epoll(7) 一样监视任何其他文件描述符。 这意味着应用程序可以同时监视“传统”文件的准备情况以及支持 eventfd 接口的其他内核机制的准备情况。
 
 和管道 pipe 相比，eventfd 完全可以替换管道。此外 eventfd 占用更少的内核资源，eventfd 只消耗一个文件描述符而管道占用两个文件描述符。
 
 ## eventfd 文化描述符操作
-### read()
-对 eventfd 调用 read() 成功返回后，read() 读取的内容是 8 字节无符号整数（uint64_t），这个无符号整数是宿主字节序。如果缓冲区小于 8 字节，read() 出错，设置 EINVAL 错误码。read() 的语义取决于 eventfd 计数器当前是否具有非零值以及在创建 eventfd 文件描述符时是否指定了 EFD_SEMAPHORE 标志
-- 如果没有设置 EFD_SEMAPHORE，并且 eventfd 的计数器不为 0，read() 读取  8 字节无符号整数，该整数的值就是计数器现在的值，计时器重新置 0。
-- 如果设置了 EFD_SEMAPHORE，并且 eventfd 的计数器不为 0，read() 读取  8 字节无符号整数，该整数的值是 1，计时器递减 1。
-- 如果 eventfd 计数器的值为 0，read() 会阻塞直到计数器的值变为非 0。如果在非阻塞模式下，read() 返回 0，并将 errno 设置 EAGAIN
+### read(2)
+对 eventfd 调用 read(2) 成功返回后，read(2) 读取的内容是 8 字节无符号整数（uint64_t），这个无符号整数是宿主字节序。如果缓冲区小于 8 字节，read(2) 出错，设置 EINVAL 错误码。read(2) 的语义取决于 eventfd 计数器当前是否具有非零值以及在创建 eventfd 文件描述符时是否指定了 EFD_SEMAPHORE 标志
+- 如果没有设置 EFD_SEMAPHORE，并且 eventfd 的计数器不为 0，read(2) 读取 8 字节无符号整数，该整数的值就是计数器现在的值，计时器重新置 0。
+- 如果设置了 EFD_SEMAPHORE，并且 eventfd 的计数器不为 0，read(2) 读取 8 字节无符号整数，该整数的值是 1，计时器递减 1。
+- 如果 eventfd 计数器的值为 0，read(2) 会阻塞直到计数器的值变为非 0。如果在非阻塞模式下，read(2) 返回 0，并将 errno 设置 EAGAIN
 
-### write()
-write() 将其缓冲区中提供的 8 字节整数累加到 eventfd 的计数器上。如果累加的结果会溢出，write() 调用将阻塞直到 read() 调用执行，或者在非阻塞模式下会失败，设置 errno 为 EAGAIN。如果提供的缓冲区小于 8 字节，或者尝试写 (uint64_t)-1，write（） 失败，设置 errno 为 EINVAL。
+### write(2)
+write(2) 将其缓冲区中提供的 8 字节整数累加到 eventfd 的计数器上。如果累加的结果会溢出，write(2) 调用将阻塞直到 read(2) 调用执行，或者在非阻塞模式下会失败，设置 errno 为 EAGAIN。如果提供的缓冲区小于 8 字节，或者尝试写 (uint64_t)-1，write（2） 失败，设置 errno 为 EINVAL。
 
-### select()、poll() 和 epoll_wait()
+### select(2)、poll(2) 和 epoll(7)
 eventfd 文件描述符支持 IO 复用。
 - 当 eventfd 的计数器大于 0，文件描述符可读
 - 如果 eventfd 的计数器至少可以再加 1 时，文件描述符可写
-- 如果检测到 eventfd 的计数器发生溢出，select() 会返回文件描述符既可读，也可写；poll() 会返回文件描述符 POLLERR 事件；可以知道，write() 调用永远不会使 eventfd 的计数器发生溢出。如果溢出已经发生，read() 读取的 8 字节无符号整数的值为 (uint64_t)-1。
+- 如果检测到 eventfd 的计数器发生溢出，select(2) 会返回文件描述符既可读，也可写；poll(2) 会返回文件描述符 POLLERR 事件；可以知道，write(2) 调用永远不会使 eventfd 的计数器发生溢出。如果溢出已经发生，read(2) 读取的 8 字节无符号整数的值为 (uint64_t)-1。
 
-## eventfd() 实现
+## eventfd(2) 实现
 ```
 @file fs/eventfd.c
 423 SYSCALL_DEFINE2(eventfd2, unsigned int, count, int, flags)
