@@ -1,4 +1,4 @@
-# Linux网络实现之 TCP
+# Linux 网络实现之 TCP
 
 ## socket 结构
 套接字代表一条端到端通信的一端，存储了该端所有与通信有关的信息。这些信息包括：使用的协议、套接字状态、源地址、目的地址、到达的连接、数据缓冲和可选标志。
@@ -32,7 +32,7 @@
 52     SS_DISCONNECTING  // 正在断开连接
 53 } socket_state;
 ```
-- type 表征套接字的类型，比如常用的 `SOCK_STREAM`（TCP）和 `SOCK_DGRAM`（UDP）等
+- type 表征套接字的类型，比如常用的 SOCK_STREAM（TCP）和 SOCK_DGRAM（UDP）等
 - flags 表征套接字的选项
 - wq 指向等待队列
 ```
@@ -58,8 +58,7 @@ rcu 是读拷贝修改(Read-Copy Update, RCU)，对于被 RCU 保护的共享数
   - 用户空间每创建一个套接字，内核会有 socket 和 sock 对象与之关联。
   - 为了方便区分，名为 sock 的指针总是指向 socket 对象，名为 sk 的指针总是指向 sock 对象。
   - 两个对象是共生关系，socket::sk 指向 sock 对象，而 sock::sk_socket 指向 socket 对象。
-
-- ops 套接字操作函数，用来将套接字系统调用映射到相应的传输层实现。proto_ops 结构体除了一个 `int` 型成员 family 表示协议族，一个 mudule 类型的成员 owner 表示所属模块外，其余都是函数指针，因此整个 proto_ops 对象可以看作是一张套接字系统调用到传输层函数的跳转表。
+- ops 套接字操作函数，用来将套接字系统调用映射到相应的传输层实现。proto_ops 结构体除了一个 int 型成员 family 表示协议族，一个 mudule 类型的成员 owner 表示所属模块外，其余都是函数指针，因此整个 proto_ops 对象可以看作是一张套接字系统调用到传输层函数的跳转表。
 ```
 /// @file inlcude/linux/net.h
 128 struct proto_ops {
@@ -113,12 +112,12 @@ rcu 是读拷贝修改(Read-Copy Update, RCU)，对于被 RCU 保护的共享数
 ### 各种 sock 结构之间的关系
 <img src='./imgs/socks.png'>
 
-这种关系特别像 C++ 中的继承。用一个 sock 指针可以指向 tcp_sock 或者 udp_sock 对象，通过类型转换，可以将指向 sock 对象的指针向“继承”方向提升为指向 inet_sock 、inet_connection_sock 或 tcp_sock 等对象。
+这种关系特别像 C++ 中的继承。用一个 sock 类型的指针可以指向 tcp_sock 或者 udp_sock 对象，通过类型转换，可以将指向 sock 对象的指针向“继承”方向提升为指向 inet_sock 、inet_connection_sock 或 tcp_sock 等对象。
 
 ### socket 和 sock 的关系
 <img src='./imgs/socket-tcp-or-udp-sock.png'>
 
-socket 是统一的接口，用于和 file 对象绑定。其 socket::sk 成员可以指向具体的套接字（比如 tcp_sock 或 udp_sock）
+socket 是统一的接口，用于和 file 对象绑定。其 socket::sk 成员指向具体的套接字（比如 tcp_sock 或 udp_sock）
 
 ## 套接字文件
 <img src='./imgs/vfs.png'>
@@ -399,7 +398,7 @@ sk_prot_alloc() 会根据传入的 prot 参数，决定从何处分配一个什�
 1469 }
 ```
 
-## socket()
+## socket(2)
 ### 接口
 ```
 int socket(int domain, int type, int protocol);
@@ -435,7 +434,7 @@ int socket(int domain, int type, int protocol);
 1404 }
 ```
 
-sock_create() 直接调用 `__sock_create()`，`__sock_create()` 比 sock_create() 多了两个参数：net 和 kern，kern 用于表示创建的套接字用于内核（1）还是用于普用进程（0）。net 用于指明命名空间。`__sock_create()` 函数的调用：
+sock_create() 直接调用 \__sock_create()，\__sock_create() 比 sock_create() 多了两个参数：net 和 kern，kern 用于表示创建的套接字用于内核（1）还是用于普用进程（0）。net 用于指明命名空间。\__sock_create() 函数的调用：
 ```
 /// @file net/socket.c
 1357 int sock_create(int family, int type, int protocol, struct socket **res)
@@ -465,8 +464,8 @@ socket_map_fd() 有一部分工作类似于普通文件 open() 系统调用：�
 410 }
 ```
 
-### `__sock_create()`
-`__sock_create()` 主要完成套接字的分配
+### \__sock_create()
+\__sock_create() 主要完成套接字的分配
 ```
 /// @file net/socket.c
 1244 int __sock_create(struct net *net, int family, int type, int protocol,
@@ -672,9 +671,10 @@ inet_create() 主要是用于创建一个传输控制块，比如 tcp_sock 或 u
 381             sk_common_release(sk);
 382     }
 ```
+<img src='./imgs/after-socket.png'>
 
-## `bind()`
-bind() 系统调用将一个本地的 IP 地址及传输层的端口和套接字关联起来。
+## bind(2)
+bind(2) 系统调用将一个本地的 IP 地址及传输层的端口和套接字关联起来。
 
 ### 接口
 ```
@@ -737,7 +737,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 468 }
 ```
 
-#### `inet_bind()`
+#### inet_bind()
 sock->ops->bind 函数指针指向具体套接字文件的绑定操作。
 ```
 /// @file net/ipv4/af_inet.c
@@ -811,8 +811,8 @@ sock->ops->bind 函数指针指向具体套接字文件的绑定操作。
 516     err = 0;
 ```
 
-## listen()
-当 socket() 函数创建一个套接字是，他被假设为一个主动套接字（调用 connect() 发起连接的客户套接字）。listen() 函数把一个未连接的套接字转换成一个被动套接字，指示内核应接受指向该套接字的连接请求。调用 listen() 导致套接字从 CLOSED 状态转换到 LISTEN 状态。同时可以指定已完成连接的队列长度。超过门限制，套接字将拒绝新的连接请求。
+## listen(2)
+当 socket(2) 函数创建一个套接字是，他被假设为一个主动套接字（调用 connect(2) 发起连接的客户套接字）。listen(2) 函数把一个未连接的套接字转换成一个被动套接字，指示内核应接受指向该套接字的连接请求。调用 listen(2) 导致套接字从 CLOSED 状态转换到 LISTEN 状态。同时可以指定已完成连接的队列长度。超过门限制，套接字将拒绝新的连接请求。
 
 ### 接口
 ```
@@ -865,7 +865,7 @@ sys_listen()
 197 
 198     lock_sock(sk);
 ```
-首先检查 socket 对象的状态和类型。如果不是 SS_UNCONNECTED 状态或者不是 SOCK_STREAM 类型，跳出。然后检查 sock 对象的状态是否为 TCPF_CLOSE 或者 TCPF_LISTEN ，不能在其他状态时调用 listen()
+首先检查 socket 对象的状态和类型。如果不是 SS_UNCONNECTED 状态或者不是 SOCK_STREAM 类型，跳出。然后检查 sock 对象的状态是否为 TCPF_CLOSE 或者 TCPF_LISTEN ，不能在其他状态时调用 listen(2)
 ```
 200     err = -EINVAL;
 201     if (sock->state != SS_UNCONNECTED || sock->type != SOCK_STREAM)
@@ -984,8 +984,8 @@ sys_listen()
 ```
 <img src='./imgs/inet_csk_listen_start2.png'>
 
-## accept()
-accept() 返回一个新的文件描述符，指向一个连接到客户的套接字文件。
+## accept(2)
+accept(2) 返回一个新的文件描述符，指向一个连接到客户的套接字文件。
 
 ### 接口
 ```
@@ -1202,8 +1202,8 @@ sys_accept4() 首先创建一个新的 socket 对象和 file 对象，然后绑�
 350 }
 ```
 
-## connect()
-对于 TCP，建立一条与指定的外部地址的连接，如果在 connect() 调用前没有绑定地址和端口号，则会自动绑定一个地址和端口号到地址。对于无连接协议如 UDP 和 ICMP，connect() 则记录外部地址，以便发送数据报时使用。
+## connect(2)
+对于 TCP，建立一条与指定的外部地址的连接，如果在 connect(2) 调用前没有绑定地址和端口号，则会自动绑定一个地址和端口号到地址。对于无连接协议如 UDP 和 ICMP，connect(2) 则记录外部地址，以便发送数据报时使用。
 
 ### 接口
 ```
@@ -1263,7 +1263,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 664     return err;
 665 }
 ```
-继续调用`____inet_stream_connect()`
+继续调用 \____inet_stream_connect()
 ```
 /// @file net/ipv4/af_inet.c
 569 int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
@@ -1372,8 +1372,8 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 537 }
 ```
 
-## shutdown()
-shutdown() 关闭连接的读通道、写通道或读写通道。对于读通道，shutdown() 丢弃所有进程还没有读走的数据以及调用 shutdown() 之后到达的数据。对于写通道，shutdown() 使用协议作相应的处理，如果是 TCP，所有剩余的数据将被发送，发送完成后发送 FIN。
+## shutdown(2)
+shutdown(2) 关闭连接的读通道、写通道或读写通道。对于读通道，shutdown(2) 丢弃所有进程还没有读走的数据以及调用 shutdown(2) 之后到达的数据。对于写通道，shutdown(2) 使用协议作相应的处理，如果是 TCP，所有剩余的数据将被发送，发送完成后发送 FIN。
 ### 接口
 ```
 int shutdown(int sockfd, int how);
@@ -1486,7 +1486,7 @@ int shutdown(int sockfd, int how);
 2114 }
 ```
 
-## close()
+## close(2)
 关闭各种文件描述符，这里只讨论关闭套接字文件描述符
 
 ### 接口
@@ -1514,7 +1514,7 @@ int close(int sockfd);
 1062     return retval;
 1063 }
 ```
-继续调用`__close_fd()`
+继续调用 \__close_fd()
 ```
 /// @file fs/file.c
 573 int __close_fd(struct files_struct *files, unsigned fd)
@@ -1596,7 +1596,7 @@ int close(int sockfd);
 253 }
 ```
 
-### `__fput()`
+### \__fput()
 ```
 /// @file fs/file_table.c
 194 static void __fput(struct file *file)
