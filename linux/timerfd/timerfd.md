@@ -5,12 +5,13 @@ timerfd 是 Linux 为用户程序提供的定时器接口。该接口将定时�
 ```
 #include <sys/timerfd.h>
 int timerfd_create(int clockid, int flags);
-int timerfd_settime(int fd, int flags, const struct itimerspec *new_value, struct itimerspec *old_value);
+int timerfd_settime(int fd, int flags, const struct itimerspec *new_value, 
+                    struct itimerspec *old_value);
 int timerfd_gettime(int fd, struct itimerspec* curr_value);
 ```
-这些系统调用创建和设置一个定时器，创建的定时器跟一个文件绑定，创建返回对应的文件描述符，对定时器的操作也通过文件描述符来进行。定时器通过文件描述符传递定时器超时通知，当定时器超时，对应的文件可读。timerfd 提供了另外一种使用定时器的方式，将监视定时器超时事件转换为文件可读事件。该“文件”在定时器超时的那一刻变得可读，这样就能很方便地融入到 select，poll 或 epoll 框架中，用统一的方式来处理 IO 事件和超时事件。
+这些系统调用创建和设置一个定时器，创建的定时器跟一个文件绑定，创建返回对应的文件描述符，对定时器的操作也通过文件描述符来进行。定时器通过文件描述符传递定时器超时通知，当定时器超时，对应的文件可读。timerfd 提供了另外一种使用定时器的方式，将监视定时器超时事件转换为文件可读事件。该“文件”在定时器超时的那一刻变得可读，这样就能很方便地融入到 select(2)，poll(2) 或 epoll(7) 框架中，用统一的方式来处理 IO 事件和超时事件。
 
-timerfd_create() 创建一个定时器对象，关联一个文件，然后返回一个文件描述符。其参数含义如下
+timerfd_create(2) 创建一个定时器对象，关联一个文件，然后返回一个文件描述符。其参数含义如下
 - clockid：指定用于标记计时器进度的时钟
   - CLOCK_REALTIME：使用系统时间，是从 1970-01-01 00:00:00.000 到当前的时间。更改系统时间会对这个值有影响。
   - CLOSE_MONOTONIC：表示使用从系统重启到现在的时间，更改系统时间对其没有影响
@@ -18,14 +19,14 @@ timerfd_create() 创建一个定时器对象，关联一个文件，然后返回
   - TFD_NONBLOCK：非阻塞模式
   - TFD_CLOEXEC：相同于 O_CLOEXEC
 
-timerfd_settime() 用来设置或者取消超时时间。flags 参数指示设置的是相对时间还是决定时间，取值如下：
+timerfd_settime(2) 用来设置或者取消超时时间。flags 参数指示设置的是相对时间还是决定时间，取值如下：
 - 0：相对时间
 - TFD_TIMER_ABSTIME：绝对时间
 
 new_value 和 old_value 用来指定新的超时时间和返回旧的超时时间。itimespec 的定义如下：
 ```
 struct timespec {
-  time_t tv_sec;    // 描述
+  time_t tv_sec;    // 秒数
   long   tv_nsec;   // 纳秒数
 };
 struct itimespec {
@@ -35,15 +36,16 @@ struct itimespec {
 ```
 其中 new_value.it_value 如果为 0（tv_sec == 0 && tv_nsec == 0）表示取消定时器，否则表示指定超时时间。old_value 不为 NULL，会返回前一次设置的超时值。
 
-timerfd_gettime() 获取定时器距离下一次超时还剩下的时间，返回的时间总是表示一个相对时间。
+timerfd_gettime(2) 获取定时器距离下一次超时还剩下的时间，返回的时间总是表示一个相对时间。
 
 ## timerfd 文件描述符操作
-### read()
-read() 读取一个 8 字节的无符号整数（uint64_t），其值表示了超时次数（it_interval 设置会循环计时，会有多次超时）。如果 timerfd 是阻塞模式并且没有超时事件，read() 会一直阻塞直到发生超时事件。如果是非阻塞模式，会设置 EAGAIN 错误码。如果读取的数据小于 8 个字节，read() 失败并设置 EINVAL 错误码
-### select()，poll() 和 epoll_wait()
+### read(2)
+read(2) 读取一个 8 字节的无符号整数（uint64_t），其值表示了超时次数（it_interval 设置会循环计时，会有多次超时）。如果 timerfd 是阻塞模式并且没有超时事件，read(2) 会一直阻塞直到发生超时事件。如果是非阻塞模式，会设置 EAGAIN 错误码。如果读取的数据小于 8 个字节，read(2) 失败并设置 EINVAL 错误码
+
+### select(2)，poll(2) 和 epoll(7)
 当定时器发生超时事件，文件描述符可读。
 
-## timerfd_create() 系统实现
+## timerfd_create(2) 系统实现
 ```
 /// @file fs/timerfd.c
 317 SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
@@ -90,7 +92,7 @@ read() 读取一个 8 字节的无符号整数（uint64_t），其值表示了�
 358 }
 ```
 
-## timerfd_settime() 实现
+## timerfd_settime(2) 实现
 ```
 /// @file fs/timerfd.c
 456 SYSCALL_DEFINE4(timerfd_settime, int, ufd, int, flags,
@@ -179,7 +181,7 @@ do_timerfd_settime() 的实现如下：
 422 }
 ```
 
-## timerfd_gettime() 实现
+## timerfd_gettime(2) 实现
 ```
 /// @file fs/timerfd.c
 474 SYSCALL_DEFINE2(timerfd_gettime, int, ufd, struct itimerspec __user *, otmr)
