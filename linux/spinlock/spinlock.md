@@ -176,12 +176,12 @@ __raw_spin_lock() 的实现如下：
  88         goto out;
  89 
  90     inc.tail &= ~TICKET_SLOWPATH_FLAG;
- 91     for (;;) { // 循环知道 head 和 tail 相等
+ 91     for (;;) { // 循环直到 head 和 tail 相等
  92         unsigned count = SPIN_THRESHOLD; // 值为 1 << 15
  93 
  94         do {
  95             if (ACCESS_ONCE(lock->tickets.head) == inc.tail)
- 96                 goto out;
+ 96                 goto out; // 获取锁，跳出循环
  97             cpu_relax();
  98         } while (--count);
  99         __ticket_lock_spinning(lock, inc.tail);
@@ -190,7 +190,7 @@ __raw_spin_lock() 的实现如下：
 102 }
 ```
 __raw_tickets 有两个成员 head 和 tail，head 指示队列的当前头部，而 tail 指示队列的当前尾部。初始化那刻，head 和 tail 的值都为 0，表示锁空闲。arch_spin_lock() 获取锁的过程是：
-1. 申请一个 __raw_tickets 类型的变量 inc，其 tail 的值为 1;
+1. 申请一个 __raw_tickets 类型的变量 inc，其 tail 的值为 1，head 的值为 0;
 2. 原子地完成 xadd()，xadd() 的工作有三部分，（1）保存 lock->tickets 的值；（2）lock->tickets.tail += inc.tail；（3）返回保存的 lock->tickets 旧值。xadd() 可以确保三个部分的整体是原子操作
 3. 然后忙等直到 lock->tichets.head == inc.tail 表示成功地获取到自旋锁 
 
@@ -244,9 +244,9 @@ x86 系统 SMP 下 spin_trylock() 最终调用 arch_spin_trylock() 函数
 ```
 arch_spin_trylock() 的逻辑如下
 - 如果当前 lock->tickets 的 head != tail，表示锁被占用（空闲时 head == tail）不能获取锁，返回 0
-- 否则，尝试原子性地更新 lock->head_tail（tail 递增 1）
+- 否则，尝试原子性地更新 lock->head_tail（tail 递增 1，head_tail 高 8 位或 16 保存的是 tail）
   - 如果更新前的旧值等于原来的值（old.head_tail）就表示这个期间没有其他对象操作本自旋锁，表示加锁成功。
   - 否则，这个期间有其他操作本自旋锁，不能成功加锁
 
 ## 总结
-自旋锁用类似“队列”的结构完成互斥控制。head 指示队列的当前头部，而 tail 指示队列的当前尾部。初始化那刻，head 和 tail 的值都为 0，head == tail 表示锁空闲。加锁的过程就是获取一个 tail_ 指示自己在“队列”的位置，然后将 tail 加 1。然后忙等待条件 head == tail_ 成立，表示自己可以获得锁。释放锁就是将 head 递增 1。
+自旋锁用类似“队列”的结构完成互斥控制。head 指示队列的当前头部，而 tail 指示队列的当前尾部。初始化那刻，head 和 tail 的值都为 0，head == tail 表示锁空闲。加锁的过程就是换取“队列”现在的尾部 tial（记为 tail_），指示自己在“队列”的位置，然后队列将 tail 加 1。然后忙等待条件 head == tail_ 成立，表示自己可以获得锁。释放锁就是将 head 递增 1。
