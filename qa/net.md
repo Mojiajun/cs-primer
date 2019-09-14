@@ -4,21 +4,21 @@
 #### Reactor模型组成
 <img src='./imgs/net-reactor.png'>
 
-- `Handle`：操作系统的句柄，是操作系统所管理资源的抽象。在网络编程中，一般指套接字描述符。这个`Handle`被注册到`Synchronous Event Demultiplexer`中以监听`Handle`发生的事件。
-- `Synchronous Event Demultiplexer`：阻塞等待直到`Handle`集合上的某些事件发生。当返回时，表示在返回的`Handle`上可以不阻塞地执行返回的事件。这个模块借助于`select`、`poll`、`epoll`或`kqueue`实现。
-- `Initiation Dispatcher`：管理`Event Handler`的注册、移除以及分派。`Synchronous Event Demultiplexer`负责等待新事件的产生，当检测到新事件时，他会通知`Initiation Dispatcher`回调特定的`Event Handler`进行处理。通常的事件包括连接请求、数据输入和输出以及超时。
-- `Event Handler`：指定由hook方法组成的接口，该方法抽象地表示特定事件的调度操作，具体的处理操作必须由特定的应用实现。
-- `Concreate Event Handler`：定义hook方法，以及面向特定应用的事件处理方法。应用程序使用`Initiation Dispatcher`将处理特定事件的`Concrete Event Handler`方法进行注册。当这些事件发生了，`Initiation Dispatcher`就回调相应`Concrete Event Handler`的hook方法。
+- Handle：操作系统的句柄，是操作系统所管理资源的抽象。在网络编程中，一般指套接字描述符。这个 Handle 被注册到 Synchronous Event Demultiplexer 中以监听 Handle 发生的事件。
+- Synchronous Event Demultiplexer：阻塞等待直到 Handle 集合上的某些事件发生。当返回时，表示在返回的 Handle上 可以不阻塞地执行返回的事件。这个模块借助于 select(2)、poll(2)、epoll(7) 实现。
+- Initiation Dispatcher：管理 Event Handler 的注册、移除以及分派。Synchronous Event Demultiplexer 负责等待新事件的产生，当检测到新事件时，他会通知 Initiation Dispatcher 回调特定的Event Handler 进行处理。通常的事件包括连接请求、数据输入和输出以及超时。
+- Event Handler：指定由hook方法组成的接口，该方法抽象地表示特定事件的调度操作，具体的处理操作必须由特定的应用实现。
+- Concrete Event Handler：定义 hook 方法，以及面向特定应用的事件处理方法。应用程序使用Initiation Dispatcher 将处理特定事件的 Concrete Event Handler 方法进行注册。当这些事件发生了，Initiation Dispatcher 就回调相应 Concrete Event Handler 的 hook方法。
 
 #### 业务逻辑
 <img src='./imgs/net-reactor-collaborations.png'>
 
-- 当应用程序使用`Initiation Dispatcher`注册`Concrete Event Handler`时，表示`Event Handler`希望`Initiation Dispatcher`在相应`Handle`上发生事件时需要通知它的事件类型。
-- `Initiation Dispatcher`请求每个`Event Handler`传回自己的内部`Handle`。这个`Handle`向操作系统表明对应的`Event Handler`。
-- 在所有`Event Handler`都被注册后，应用调用`handle_events`方法开启`Initiation Dispatcher`的事件循环（event loop）。此时，`Initation Dispatcher`集结了所有已注册`Event Handler`的`Handle`，并且使用`Synchronous Event Demultiplexer`等待相应事件发生。
-- `Synchronous Event Demultiplexer`在发生事件使对应的`Handle`变成就绪时，通知`Initation Dispatcher`。
-- `Initiation Dispatcher`触发`Event Handler`的hook方法以响应处于就绪`Handle`的事件。当事件产生，`Initiation Dispatcher`利用这些就绪的`Handle`当成“键值”取定位和分派相应的`Event Handler`的hook方法。
-- `Initiation Dispatcher`回调面向特定应用的`Event Handler`的`handle_event`hook方法进行处理以响应事件。
+- 当应用程序使用 Initiation Dispatcher 注册 Concrete Event Handler 时，表示 Event Handler 希望 Initiation Dispatcher 在相应 Handle 上发生事件时需要通知它的事件类型。
+- Initiation Dispatcher 请求每个 Event Handler 传回自己的内部 Handle。这个 Handle 向操作系统表明对应的 Event Handler。
+- 在所有 Event Handler 都被注册后，应用调用 handle_events() 方法开启 Initiation Dispatcher 的事件循环（event loop）。此时，Initiation Dispatcher集结了所有已注册 Event Handler 的 Handle，并且使用 Synchronous Event Demultiplexer 等待相应事件发生。
+- Synchronous Event Demultiplexer 在发生事件使对应的 Handle 变成就绪时，通知 Initiation Dispatcher。
+- Initiation Dispatcher 触发 Event Handler 的 hook 方法以响应处于就绪 Handle 的事件。当事件产生，Initiation Dispatcher 利用这些就绪的 Handle 当成“键值”取定位和分派相应的 Event Handler 的hook方法。
+- Initiation Dispatcher 回调面向特定应用的Event Handler的 handle_event() hook方法进行处理以响应事件。
 
 #### 优缺点
 - 优点
@@ -31,6 +31,9 @@
   - 相比传统的简单模型，Reactor增加了一定的复杂性，因而有一定的门槛，并且不易于调试。 
   - Reactor模式需要底层的Synchronous Event Demultiplexer支持，比如Java中的Selector支持，操作系统的select系统调用支持，如果要自己实现Synchronous Event Demultiplexer可能不会有那么高效。 
   - Reactor模式在IO读写数据时还是在同一个线程中实现的，即使使用多个Reactor机制的情况下，那些共享一个Reactor的Channel如果出现一个长时间的数据读写，会影响这个Reactor中其他Channel的相应时间，比如在大文件传输时，IO操作就会影响其他Client的相应时间，因而对这种操作，使用传统的Thread-Per-Connection或许是一个更好的选择，或则此时使用Proactor模式。
+
+### TCP 分节头部长度，分节最大长度
+TCP 基本首部是 20 个字节，其他的数据在附加在基本首部后面的选项字段中，选项可以是最大报文段长度、时间戳等。如果选项数据如果不足 4 字节的倍数，填充 0。首部中的 4 位首部长度字段标记 TCP 首部的长度，该值表示 32 字的个数，比如说首部长度为 20，则该字段的值为 5。TCP 最大分节长度为 1460 字节，计算方式如下：以太网的最大数据帧是 1518 字节，以太网头部至少占用 14 字节（目的地址 6 字节、源地址 6 字节，类型标志 2 字节）帧尾校验占 4 字节。再出去 IP 首部和 TCP 首部个 20 字节，剩下 1460 字节。
 
 ### TCP/UDP区别
 #### UDP
@@ -64,15 +67,13 @@
 - 应用层：允许访问OSI环境的手段（应用协议数据单元APDU
 
 ### TCP三次握手和四次挥手，为什么是3次和4次
-
 ### 第三次挥手客户端收到服务端发来的FIN后处于什么状态（time_wait），为什么要time wait？
 - 第一为了保证最后一个`ACK`能够到达。最后一个`ACK`分节可能丢失，如果客户端不等待2MSL，可能的结果是服务器超时重传`FIN`分节，而此时客户端已经关闭，不能发送`ACK`确认，服务器不能正常释放连接。若客户端等待了2MSL，客户端收到FIN后发送`ACK`，并且重启计时器，再次等待2MSL。
 - 第二，防止类似“已经失效的连接请求报文段”出现在本连接中。客户端发送完最后一个确认报文后，在这个2MSL时间中，就可以使本连接持续的时间内所产生的所有报文段都从网络中消失。这样新的连接中不会出现旧连接的请求报文。
 
 ### ARP协议和相关操作
-
-### HTTP的常见方法，post与get差别，常见的请求头key-val对儿
-### 在Chrome浏览器的地址栏中输入`www.google.com`，然后回车，到底发生了什么
+### HTTP 的常见方法，post 与 get 差别，常见的请求头 key-val 对
+### 在 Chrome 浏览器的地址栏中输入 `www.google.com`，然后回车，到底发生了什么
 1. 浏览器分析URL
 2. 浏览器向DNS请求解析`www.google.com`的IP地址
 3. DNS返回`www.google.com`对应服务器的IP地址
@@ -87,8 +88,11 @@
 2. 服务器返回登录成功信息后，客户端打开一个随机端口PORT，并将该端口号发送给服务器
 3. 客户端发送读取文件命令，内容为get file，服务器使用20号端口号建立一个TCP连接到客户端的PORT
 4. 服务器把文件内容通过第二个连接发送给客户端，传输完毕连接关闭
-### TCP流量控制、滑动窗口
-### TCP数据传输过程中如何确认数据包未发送成功？有什么机制
+### TCP 流量控制、滑动窗口
+### TCP 数据传输过程中如何确认数据包未发送成功？有什么机制
+### 如何使用 TCP 传输一个复杂的对象
+整体思路就是先序列化在网络传输。序列化就是将一个对象变成一系列的字节，利用反序列化可以恢复出原始的对象。序列化和反序列化的目的是屏蔽字节序和字节对齐的干扰。如果跨平台传输，需要考虑字节序的问题。对于跨越多字节的对象，必须确定两个规则：（1）这个对象的地址是什么，（2）在内存中如何排列这些字节。在几乎所有的机器上，多字节对象都被存储为连续的字节序列，对象的地址为所使用字节中最小的地址。但是如何排列一个对象的字节有两个通用的规则：（1）大端法（大端字节序），从最低有效字节到最高有效字节的顺序存储对象；小端法（小端字节序），从最高有效字节到最地有效字节的顺序存储对象。此外也需要字节对齐的问题，不同的机器，默认对齐方式不同。常用的序列化工具是谷歌的 protobuf（Protocol Buffers），protobuf 的原理是将一个对象每个字段进行编码后，在利用“标签-长度-值”的方式存储，最终得到一个二进制字节流。
+
 ### IP包头中的TTL是什么意思
 ### 客户端和服务器端创建socket链接流程
 ### DNS协议的类型？
