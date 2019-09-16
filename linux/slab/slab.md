@@ -1,22 +1,23 @@
 # Linux Slab分配器（Linux版本3.16.69）
 
 ## 背景
-Linux 内存管理使用的伙伴系统（Buddy System）最小分配单位是页， 即 `PAGE_SIZE`，并且每次分配 2^n 个页面。在 x86 架构中每页的大小一般为 4KB。但是很多情况下，内核某个模块某个时候需要申请的内存是远远小于 4KB 的，如果使用伙伴系统的话，必定是会产生很大的浪费的。所以，一个粒度更加小的分配器呼之欲出，SLAB 就是为了解决这个小粒度内存分配的问题的。
+Linux 内存管理使用的伙伴系统（Buddy System）最小分配单位是页， 即 PAGE_SIZE，并且每次分配 2^N 个页面。在 x86 架构中每页的大小一般为 4KB。但是很多情况下，内核某个模块某个时候需要申请的内存是远远小于 4KB 的，或者跟 2^N 个页面的大小差别大，如果使用伙伴系统的话，必定是会产生很大的浪费。所以，一个粒度更小的分配器呼之欲出，SLAB 就是为了解决这个小粒度内存分配的问题。
 
 此外，我们考虑下面场景：如果一个内核模块经常使用某一种类型的对象，或者说频繁的创建、回收某一种类型的对象，那我们是不是可以尝试将这类对象单独存放起来，当模块不再使用时一个对象时，我们暂时先不释放对象的内存，而是缓存起来，等该模块再此申请使用这类对象，我们把之前应该回收的对象再拿出来，只不过重新构造一下对象，这样我们就减少了一次释放、申请内存的操作了。
 
-SLAB分配器是建立在伙伴系统之上的已额细粒度的内存分配系统，SLAB分配器使用的内存空间是通过伙伴算法进行分配的，只不过SLAB对这些内存空间实现了自己的算法进而对小块内存进行管理。SALB分配器背后的基本思想是缓存常用对象，供内核使用。如果没有基于对象的分配器，内核将花费大量时间来分配，初始化和释放同一个对象。
+SLAB 分配器是建立在伙伴系统之上的一个更加细粒度的内存分配系统，SLAB 分配器使用的内存空间是通过伙伴算法进行分配的，只不过 SLAB 对这些内存空间实现了自己的算法进而对小块内存进行管理。SALB 分配器背后的基本思想是缓存常用对象，供内核使用。如果没有基于对象的分配器，内核将花费大量时间来分配，初始化和释放同一个对象。
 
-## Slab分配器数据结构
-在SLAB分配器的语境中，`cache`指管理特定类型（如`mm_struct`，`tcp_sock`等）的多个对象的管理器。`cache`管理的对象并不是散乱的，而是用叫做 `slab` 的结构组织起来的。`cache`可以拥有多个 `slab`，每个 `slab` 都是从伙伴系统申请的 `2^N` 个页面构造而成。
+## SLAB 分配器数据结构
+在 SLAB 分配器的语境中，cache 指管理特定类型（如 task_struct、mm_struct 和 tcp_sock 等）的多个对象的管理器。cache 管理的对象并不是散乱的，而是用叫做 slab 的结构组织起来的。cache 可以拥有多个 slab，每个 slab 都是从伙伴系统申请的 2^N 个页面构造而成。
+
 <img src='./imgs/slab-data-structures.png'>
 
-- `cache` 描述符：`struct kmem_cache`类型的对象，保存 `cache` 的基本信息，比如名字、对象大小、对齐，每个 `slab` 对象的个数
-- `kmem_cache_node`：管理 `slab`
-- `array_cache`：缓存对象
-- `slab` 管理结构：管理 `2^N` 个页面分割的对象
+- cache 描述符：kmem_cache 结构体类型的对象，保存 cache 的基本信息，比如名字、对象大小、对齐，每个 slab 对象的个数以及需要申请多少个页面
+- kmem_cache_node：管理 slab
+- array_cache：缓存对象
+- slab 管理结构：管理 2^N 个页面分割的对象
 
-### `freelist_idx_t`
+### freelist_idx_t
 ```
 /// @file mm/slab.c
 163 #if FREELIST_BYTE_INDEX
@@ -26,7 +27,7 @@ SLAB分配器是建立在伙伴系统之上的已额细粒度的内存分配系�
 167 #endif
 ```
 
-### `array_cache`
+### array_cache
 ```
 /// @file mm/slab.c
 189 struct array_cache {
@@ -39,7 +40,7 @@ SLAB分配器是建立在伙伴系统之上的已额细粒度的内存分配系�
 204 };
 ```
 
-### `kmem_cache_node`
+### kmem_cache_node
 ```
 /// @file mm/slab.h
 269 struct kmem_cache_node {
@@ -71,7 +72,7 @@ SLAB分配器是建立在伙伴系统之上的已额细粒度的内存分配系�
 295 };
 ```
 
-### `kmem_cache`
+### kmem_cache
 ```
 /// @file include/linux/slab_def.h
  6 /*
@@ -122,8 +123,31 @@ SLAB分配器是建立在伙伴系统之上的已额细粒度的内存分配系�
 91 };
 ```
 
-## 创建一个Slab分配器--`kmem_cache_create`
-比如创建一个管理`struct test`的`cache`
+## SLAB 接口函数
+```
+#include <linux/slab.h>
+/// 创建 SLAB 分配器
+struct kmem_cache* 
+kmem_cache_create(const char *name, size_t size, size_t align, unsigned long flags, 
+                  void (*ctor)(void*, struct kmem_cache*, unsigned long));
+
+/// 释放 SLAB 分配器
+void kmem_cache_destroy(struct kmem_cache *cachep);
+
+/// 从 SLAB 分配器中分配对象
+void *kmem_cache_alloc(struct kmem_cache *cachep, gfp_t flags);
+void *kmem_cache_zalloc(struct kmem_cache *cachep, gfp_t flags); // 对象会清零
+
+/// 将某个对象还会 SLAB 分配器
+void kmem_cache_free(struct kmem_cache *cachep, void *objp);
+
+/// 通用对象分配和释放
+void *kmalloc(size_t size, int flags);
+void kfree(const void* objp)
+```
+
+## 创建一个 SLAB 分配器 -- kmem_cache_create() 函数
+比如创建一个管理 struct test 的 cache
 ```
 struct slab_test {
   float fval;
@@ -142,11 +166,11 @@ struct kmem_cache *cachep = kmem_cache_create(
   0, SLAB_HWCACHE_ALIGN, slab_ctor);
 ```
 
-### STEP1、创建`cache`描述符
+### STEP1、创建 cache 描述符
 <img src='./imgs/kmem-cache-zalloc.png'>
 
-#### `kmem_cache_create()`
-调用`kmem_cache_create()`函数创建一个`keme_cache`的对象。
+#### kmem_cache_create()
+调用 kmem_cache_create() 函数创建一个 keme_cache 类型的对象。
 ```
 /// @file mm/slab_common.c
 198 struct kmem_cache *
@@ -154,11 +178,11 @@ struct kmem_cache *cachep = kmem_cache_create(
 200           unsigned long flags, void (*ctor)(void *))
 ```
 各个参数的含义如下：
-- `name`：创建`cache`的名字，用于在 `/proc/slabinfo` 表示一个cache
-- `size`：通过本`cache`创建的对象的大小
-- `align`：对齐字节
-- `flags`：标志，常用的是`SLAB_HWCACHE_ALIGN`，表示按照硬件缓存线对齐对象
-- `ctor`：对象构造函数
+- name：创建 cache 的名字，用于在 `/proc/slabinfo` 表示一个cache
+- size：通过本 cache 创建的对象的大小
+- align：对齐字节
+- flags：标志，常用的是 SLAB_HWCACHE_ALIGN，表示按照硬件缓存线对齐对象
+- ctor：对象构造函数
 
 接下来分析具体的实现
 ```
@@ -223,7 +247,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 258     return s;
 259 }
 ```
-可以看到，`kmem_cache_create()`调用`do_kmem_cache_create()`执行创建`kmem_cache`对象的操作。在了解`do_kmem_cache_create()`之前先看一下`calculate_alignment()`是如何进行对齐处理的
+可以看到，kmem_cache_create() 调用 do_kmem_cache_create() 执行创建 kmem_cache 对象的操作。在了解 do_kmem_cache_create() 之前先看一下 calculate_alignment() 是如何进行对齐处理的
 ```
 /// @file mm/slab_common.c
 107 /*
@@ -246,9 +270,9 @@ struct kmem_cache *cachep = kmem_cache_create(
 131     return ALIGN(align, sizeof(void *)); // 64位系统8字节对齐
 132 }
 ```
-如果没有指定（通常是这样）`align`，需要满足三个对齐要求：（1）和CPU的`cache_line_size()`对齐；（2）满足SLAB对小对齐要求；（3）满足计算机对齐要求。`calculate_alignment()`返回的是对齐值基准，而不是对象对齐后的大小。比如说`size`为110，那么会返回64。对象对齐后的大小应该为128。
+如果没有指定（通常是这样）align，需要满足三个对齐要求：（1）和 CPU 的 cache_line_size() 对齐；（2）满足 SLAB 最小对齐要求；（3）满足计算机对齐要求。calculate_alignment() 返回的是对齐值基准，而不是对象对齐后的大小。比如说 size 为 110，那么会返回 64。对象对齐后的大小应该为 128。
 
-#### `do_kmem_cache_create()`
+#### do_kmem_cache_create()
 ```
 /// @file mm/slab_common.c
 134 static struct kmem_cache *
@@ -292,8 +316,8 @@ struct kmem_cache *cachep = kmem_cache_create(
 172 }
 ```
 
-### STEP2、初始化`cache`管理描述符
-初始化工作主要在`__kmem_cache_create()`完成
+### STEP2、初始化 cache 管理描述符
+初始化工作主要在 __kmem_cache_create() 完成
 ```
 /// @file mm/slab.c
 2225 int
@@ -309,7 +333,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 /// ...
 2250 #endif
 ```
-`cachep`指向已经分配的`kmem_cache`的对象首先是再次做对齐处理。目前`cachep->size`是对象的实际大小，如果标志仅仅是`SLAB_HWCACHE_ALIGN`，不会更新`cachep->align`。随后调用`setup_node_pointer()`更新`cachep->node`。最后更新`cachep->size`的大小，更新后表示对象对齐后的大小。
+指针 cachep 指向已经分配的 kmem_cache 的对象首先是再次做对齐处理。目前 cachep->size 是对象的实际大小，如果标志仅仅是 SLAB_HWCACHE_ALIGN，不会更新 cachep->align。随后调用 setup_node_pointer() 更新 cachep->node。最后更新 cachep->size 的大小，更新后表示对象对齐后的大小。
 
 <img src='./imgs/setup-node-pointer.png'>
 
@@ -365,7 +389,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2345     if (FREELIST_BYTE_INDEX && size < SLAB_OBJ_MIN_SIZE)
 2346         size = ALIGN(SLAB_OBJ_MIN_SIZE, cachep->align); // 满足最小obj大小
 ```
-接下来是调用`calculate_slab_order()`计算需要分配多少个页面。
+接下来是调用 calculate_slab_order() 计算需要分配多少个页面。
 ```
 /// @file mm/slab.c
 2348     left_over = calculate_slab_order(cachep, size, cachep->align, flags);
@@ -374,7 +398,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2351         return -E2BIG;
 ```
 
-#### `calculate_slab_order()`
+####  calculate_slab_order()
 <img src='./imgs/calculate-slab-order.png'>
 
 ```
@@ -439,7 +463,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2138     return left_over; // 返回剩余的空间大小
 2139 }
 ```
-然后看一下`cache_estimate()`的操作
+然后看一下 cache_estimate() 的操作
 ```
 /// @file mm/slab.c
 662 static void cache_estimate(unsigned long gfporder, size_t buffer_size,
@@ -463,7 +487,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 694     *left_over = slab_size - nr_objs*buffer_size - mgmt_size;
 695 }
 ```
-我么可以看到，如果slab管理结构在slab之外，计算相当简单。复杂的是当管理结构在slab内部的时，需要考虑管理结构的放置。第一步是调用`calculate_nr_objs()`计算可以分割出多少个对象。
+我么可以看到，如果 slab 管理结构在 slab 之外，计算相当简单。复杂的是当管理结构在 slab 内部的时，需要考虑管理结构的放置。第一步是调用 calculate_nr_objs() 计算可以分割出多少个对象。
 ```
 /// @file mm/slab.c
 627 static int calculate_nr_objs(size_t slab_size, size_t buffer_size,
@@ -492,7 +516,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 656     return nr_objs; // 返回空间数
 657 }
 ```
-第二步是调用`calculate_freelist_size()`计算slab管理结构的大小
+第二步是调用 calculate_freelist_size() 计算 slab 管理结构的大小
 ```
 /// @file mm/slab.c
 613 static size_t calculate_freelist_size(int nr_objs, size_t align)
@@ -510,7 +534,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 625 }
 ```
 
-#### `__kmem_cache_create()`填写成员
+#### __kmem_cache_create() 填写成员
 <img src='./imgs/kmem-cache-fill-members.png'>
 
 ```
@@ -548,7 +572,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2388     cachep->size = size; // 对象对齐后的大小
 2389     cachep->reciprocal_buffer_size = reciprocal_value(size);
 ```
-接下来就是申请其他的结构，比如说slab管理结构、`cache_array`对象和`kmem_cache_node`对象
+接下来就是申请其他的结构，比如说 slab 管理结构、cache_array 对象和 kmem_cache_node 对象
 ```
 /// @file mm/slab.c : __kmem_cache_create
 2391     if (flags & CFLGS_OFF_SLAB) { // 申请slab管理结构
@@ -584,7 +608,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2421 }
 ```
 
-#### `setup_cpu_cache()`
+#### setup_cpu_cache()
 ```
 /// @file mm/slab.c
 2141 static int __init_refok setup_cpu_cache(struct kmem_cache *cachep, gfp_t gfp)
@@ -593,7 +617,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2144         return enable_cpucache(cachep, gfp);
 ///...
 ```
-`setup_cpu_cache()`直接调用`enable_cpucache()`，会完成`limit`和`batchcount`的设置
+setup_cpu_cache() 直接调用 enable_cpucache()，会完成 limit 和 batchcount 的设置
 ```
 /// @file mm/slab.c
 3926 static int enable_cpucache(struct kmem_cache *cachep, gfp_t gfp)
@@ -623,7 +647,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3959     else
 3960         limit = 120; // 
 3971     shared = 0;
-3972     if (cachep->size <= PAGE_SIZE && num_possible_cpus() > 1) // 单CPU不成立
+3972     if (cachep->size <= PAGE_SIZE && num_possible_cpus() > 1) // 单 CPU 不成立
 3973         shared = 8;
 3974 
 3975 #if DEBUG
@@ -638,7 +662,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3989     return err;
 3990 }
 ```
-`do_tune_cpucache()`会完成`cache_array`对象和`kmem_cache_node`对象的申请
+do_tune_cpucache() 会完成 cache_array 对象和 kmem_cache_node 对象的申请
 ```
 /// @file mm/slab.c
 3899 static int do_tune_cpucache(struct kmem_cache *cachep, int limit,
@@ -668,10 +692,10 @@ struct kmem_cache *cachep = kmem_cache_create(
 3923 }
 ```
 
-### STEP3、分配`cache_array`
+### STEP3、分配 cache_array
 <img src='./imgs/alloc-arraycache.png'>
 
-首先分配一个`ccupdate_struct`对象`new`用于暂存分配的`array_cache`对象
+首先分配一个 ccupdate_struct 对象（用指针 new 指向）用于暂存分配的 array_cache 对象
 ```
 /// @file mm/slab.c
 3838 struct ccupdate_struct {
@@ -690,7 +714,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3864     if (!new)
 3865         return -ENOMEM;
 ```
-然后开始分配`array_cache`对象
+然后开始分配 array_cache 对象
 ```
 /// @file mm/slab.c     
 3867     for_each_online_cpu(i) {
@@ -705,7 +729,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3876     }
 3877     new->cachep = cachep;
 ```
-将`new`保存的`array_cache`和`cachep`交换
+将 new 指向的 array_cache 和 cachep 交换
 ```
 /// @file mm/slab.c    
 3879     on_each_cpu(do_ccupdate_local, (void *)new, 1); // 交换
@@ -715,7 +739,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3883     cachep->limit = limit;
 3884     cachep->shared = shared;
 ```
-最后释放`new`
+最后释放 new 指向的对象
 ```
 /// @file mm/slab.c
 3886     for_each_online_cpu(i) {
@@ -727,7 +751,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3892         spin_unlock_irq(&cachep->node[cpu_to_mem(i)]->list_lock);
 3893         kfree(ccold);
 3894     }
-3895     kfree(new); // 释放new对象
+3895     kfree(new); // 释放 new 指向对象
 3896     return alloc_kmem_cache_node(cachep, gfp);
 3897 }
 ```
@@ -754,8 +778,8 @@ struct kmem_cache *cachep = kmem_cache_create(
 819 }
 ```
 
-#### `on_each_cpu()`
-`on_each_cpu()`调用`do_ccpudate_local(info)`
+#### on_each_cpu() 
+on_each_cpu() 调用 do_ccpudate_local(info)
 ```
 /// @file mm/slab.c
 3843 static void do_ccupdate_local(void *info)
@@ -771,7 +795,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3853 }
 ```
 
-### STEP4、分配`kmem_cache_node`
+### STEP4、分配 kmem_cache_node 对象
 <img src='./imgs/alloc-kmem-cache-node.png'>
 
 ```
@@ -847,7 +871,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 /// ...
 3836 }
 ```
-`kmem_cache_node_init()`的初始化操作如下：
+kmem_cache_node_init() 的初始化操作如下：
 ```
 /// @file mm/slab.c
 254 static void kmem_cache_node_init(struct kmem_cache_node *parent)
@@ -865,7 +889,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 ```
 到目前位置，SLAB管理相关的数据结构已经分配完成，可以看到，此时并没有任何可以用对象。
 
-## 分配对象`kmem_cache_alloc`
+## 分配对象 kmem_cache_alloc()
 ```
 /// @file mm/slab.c
 3549 void *kmem_cache_alloc(struct kmem_cache *cachep, gfp_t flags)
@@ -878,7 +902,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3556     return ret;
 3557 }
 ```
-分配操作在`slab_alloc()`中完成
+分配操作在 slab_alloc() 中完成
 ```
 /// @file mm/slab.c
 3374 static __always_inline void *
@@ -914,7 +938,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3404     return objp;
 3405 }
 ```
-`__do_cache_alloc()`继续调用`____cache_alloc()`
+\__do_cache_alloc() 继续调用 ____cache_alloc()
 ```
 /// @file mm/slab.c
 3366 static __always_inline void *
@@ -923,7 +947,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3369     return ____cache_alloc(cachep, flags);
 3370 }
 ```
-`___cache_alloc`的定义如下：
+___cache_alloc() 的定义如下：
 ```
 /// @file mm/slab.c
 3070 static inline void *____cache_alloc(struct kmem_cache *cachep, gfp_t flags)
@@ -969,10 +993,10 @@ struct kmem_cache *cachep = kmem_cache_create(
 3110     return objp;
 3111 }
 ```
-从上面的分析可知，如果`array_cache`中有可用对象，直接从中获取。如果分配失败或者`array_cache`没有可用对象，需要调用`cache_alloc_refill()`进行处理。
+从上面的分析可知，如果 array_cache 中有可用对象，直接从中获取。如果分配失败或者 array_cache 没有可用对象，需要调用 cache_alloc_refill() 进行处理。
 
-### STEP1、从`array_cache`获取对象
-调用`ac_get_obj()`获取一个对象，过程很简单。
+### STEP1、从 array_cache 获取对象
+调用 ac_get_obj() 获取一个对象，过程很简单。
 ```
 /// @file mm/slab.c
 902 static inline void *ac_get_obj(struct kmem_cache *cachep,
@@ -989,8 +1013,8 @@ struct kmem_cache *cachep = kmem_cache_create(
 913 }
 ```
 
-### STEP2、若STEP1失败，调用`cache_alloc_refill`
-在第一次申请对象时，`force_refill`一定是`false`，我们就按照这个分析。可以看到传入参数`force_refill`为`true`的话，直接跳转到`force_grow`进行申请页面，分割对象。
+### STEP2、若STEP1失败，调用 cache_alloc_refill()
+在第一次申请对象时，force_refill 一定是 false，我们就按照这个分析。可以看到传入参数 force_refill 为 true 的话，直接跳转到 force_grow 进行申请页面，分割对象。
 ```
 /// @file mm/slab.c
 2901 static void *cache_alloc_refill(struct kmem_cache *cachep, gfp_t flags,
@@ -1006,7 +1030,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2911     if (unlikely(force_refill)) // unlikely表示不执行if的可能性大
 2912         goto force_grow; // 强制填充
 ```
-`retry`是分配对象完成的地方，`force_grow`只是申请页面，分割出对象，不会执行分配对象的操作。`retry`会尝试从其他地方转移一部分（数目为`batchcount`）的对象到`array_cache`。第一步是尝试从`array_cache::shared`上获取一部分对象，根据前面的分析`shared`为空。
+retry 是分配对象完成的地方，force_grow 只是申请页面，分割出对象，不会执行分配对象的操作。retry会尝试从其他地方转移一部分（数目为 batchcount）的对象到 array_cache 。第一步是尝试从 array_cache::shared 上获取一部分对象，根据前面的分析 shared 为空。
 ```
 /// @file mm/slab.c
 2913 retry:
@@ -1031,7 +1055,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2932         goto alloc_done;
 2933     }
 ```
-接下来尝试从`slabs_partial`和`slabs_free`链表上`batchcount`个对象。
+接下来尝试从 slabs_partial 和 slabs_free 链表上 batchcount 个对象。
 ```
 /// @file mm/slab.c
 2935     while (batchcount > 0) {
@@ -1100,8 +1124,8 @@ struct kmem_cache *cachep = kmem_cache_create(
 2998 }
 ```
 
-### STEP3、（退无可退）必须申请页面，转到`cache_grow`
-需要注意的是，`cache_grow`在申请页面后，再次跳转到`retry`
+### STEP3、（退无可退）必须申请页面，转到 cache_grow
+需要注意的是， cache_grow() 在申请页面后，再次跳转到 retry 
 #### 申请页
 <img src='./imgs/cache-grow.png'>
 
@@ -1164,7 +1188,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2792 
 2793     slab_map_pages(cachep, page, freelist);
 ```
-`alloc_slabmgmt()`是分配slab管理结构
+alloc_slabmgmt() 是分配slab管理结构
 ```
 /// @file mm/slab.c
 2595 static void *alloc_slabmgmt(struct kmem_cache *cachep,
@@ -1189,7 +1213,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2614     return freelist;
 2615 }
 ```
-`slab_map_pages()`是连接`cachep`和`freelist`
+slab_map_pages() 是连接 cachep 和 freelist
 ```
 /// @file mm/slab.c
 2727 static void slab_map_pages(struct kmem_cache *cache, struct page *page,
@@ -1226,7 +1250,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2813     return 0;
 2814 }
 ```
-将页面分割成对象是调用`cache_init_objs()`完成的。完成后，将`page`挂到`slabs_free`链表的末尾。
+将页面分割成对象是调用 cache_init_objs() 完成的。完成后，将 page 挂到 slabs_free 链表的末尾。
 ```
 /// @file mm/slab.c
 2628 static void cache_init_objs(struct kmem_cache *cachep,
@@ -1247,7 +1271,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2672     }
 2673 }
 ```
-`index_to_obj`是根据索引返回对象的地址
+index_to_obj() 是根据索引返回对象的地址
 ```
 /// @file mm/slab.c
 438 static inline void *index_to_obj(struct kmem_cache *cache, struct page *page,
@@ -1256,22 +1280,23 @@ struct kmem_cache *cachep = kmem_cache_create(
 441     return page->s_mem + cache->size * idx;
 442 }
 ```
-从`set_free_obj()`可以看出slab管理结构`freelist`是什么，是对象索引
+从 set_free_obj() 可以看出slab管理结构 freelist 是什么。freelist 是一个数组，存放对象的索引，在初始化的时候，freelist[i] = i，根据索引值就可以找到对象的地址。page->active 表示本 slab 分配出的对象，也表示 freelist 数组使用的是 [0, page->active) 区间，该区间保存的索引就是分配出去的对象的索引。
 ```
 /// @file mm/slab.c
-2617 static inline freelist_idx_t get_free_obj(struct page *page, unsigned int idx)
-2618 {   
-2619     return ((freelist_idx_t *)page->freelist)[idx];
-2620 }
+2622 static inline void set_free_obj(struct page *page,
+2623                     unsigned int idx, freelist_idx_t val)
+2624 {
+2625     ((freelist_idx_t *)(page->freelist))[idx] = val;
+2626 }
 ```
 
-#### 再次访问`retry`
+#### 再次访问 retry
 <img src='./imgs/ac-put-obj.png'>
 
-此时`slabs_free`链表不再为空，需要用这个链表上的对象填充`array_cache`数组。
+此时 slabs_free 链表不再为空，需要用这个链表上的对象填充 array_cache 数组。
 ```
 /// @file mm/slab.c : cache_alloc_refill()
-2957         while (page->active < cachep->num && batchcount--) {
+2957         while (page->active < cachep->num && batchcount--) { // 循环
 2958             STATS_INC_ALLOCED(cachep);
 2959             STATS_INC_ACTIVE(cachep);
 2960             STATS_SET_HIGH(cachep);
@@ -1285,7 +1310,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 
 2997     return ac_get_obj(cachep, ac, flags, force_refill); // 返回一个对象
 ```
-`slab_get_obj`是从`page`获取一个对象
+slab_get_obj() 是从 page 获取一个对象
 ```
 /// @file mm/slab.c
 2685 static void *slab_get_obj(struct kmem_cache *cachep, struct page *page,
@@ -1302,7 +1327,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2696     return objp;
 2697 }
 ```
-`get_free_obj()`是返回未分配对象的索引
+get_free_obj() 是返回未分配对象的索引
 ```
 /// @file mm/slab.c
 2617 static inline freelist_idx_t get_free_obj(struct page *page, unsigned int idx)
@@ -1310,7 +1335,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2619     return ((freelist_idx_t *)page->freelist)[idx];
 2620 }
 ```
-`ac_put_obj()`的作用就是将对象放到`array_cache`中
+ac_put_obj() 的作用就是将对象放到 array_cache 中
 ```
 /// @file mm/slab.c
 928 static inline void ac_put_obj(struct kmem_cache *cachep, struct array_cache *ac,
@@ -1322,13 +1347,12 @@ struct kmem_cache *cachep = kmem_cache_create(
 934     ac->entry[ac->avail++] = objp; // 这里
 935 }
 ```
-需要注意的是，这里是指针的改变，并没有对象的移动。最后调用`ac_get_obj()`返回一个对象
+需要注意的是，这里是指针的改变，并没有对象的移动。最后调用 ac_get_obj() 返回一个对象
 
 <img src='./imgs/ac-get-obj.png'>
 
-
-## 释放对象`kmem_cache_free()`
-首先是根据obj的地址找到所属的`cache`，这时通过`cache_from_obj`实现的。基本的流程是先通过obj的地址找到所属的页面`page`，通过`page->slab_cache`找到所属的`cache`。然后调用`__cache_free`释放对象。
+## 释放对象 kmem_cache_free()
+首先是根据obj的地址找到所属的 cache ，这时通过 cache_from_obj() 实现的。基本的流程是先通过 obj 的地址找到所属的页面 page，通过 page->slab_cache 找到所属的 cache。然后调用 __cache_free() 释放对象。
 ```
 /// @file mm/slab.c
 3703 void kmem_cache_free(struct kmem_cache *cachep, void *objp)
@@ -1349,8 +1373,8 @@ struct kmem_cache *cachep = kmem_cache_create(
 3718 }
 ```
 
-### `__cache_free()`
-当`array_cache`还有空闲时，直接放入`ac_put_obj`。否则要先刷新`cache_flusharray`，再放入。
+### __cache_free()
+当 array_cache 还有空闲时，调用 ac_put_obj() 直接放入。否则要先刷新 cache_flusharray()，再放入。
 ```
 /// @file mm/slab.c
 3510 static inline void __cache_free(struct kmem_cache *cachep, void *objp,
@@ -1385,7 +1409,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3539 }
 ```
 
-### `cache_flusharray()`
+### cache_flusharray()
 ```
 /// @file mm/slab.c
 3455 static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac)
@@ -1440,8 +1464,8 @@ struct kmem_cache *cachep = kmem_cache_create(
 3504 }
 ```
 
-### `free_block()`
-将`nr_objects`个对象放回所属的页面中
+### free_block()
+将 nr_objects 个对象放回所属的页面中
 ```
 /// @file mm/slab.c
 3410 static void free_block(struct kmem_cache *cachep, void **objpp, int nr_objects,
@@ -1461,7 +1485,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3424         n = cachep->node[node];
 3425         list_del(&page->lru);
 3426         check_spinlock_acquired_node(cachep, node);
-3427         slab_put_obj(cachep, page, objp, node); // 返回objs
+3427         slab_put_obj(cachep, page, objp, node); // 还会 obj
 3428         STATS_DEC_ACTIVE(cachep);
 3429         n->free_objects++; // 可用对象递增
 3430 
@@ -1489,7 +1513,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 3452     }
 3453 }
 ```
-`slab_put_obj()`的工作很简单
+slab_put_obj() 的工作很简单
 ```
 /// @file mm/slab.c
 2699 static void slab_put_obj(struct kmem_cache *cachep, struct page *page,
@@ -1503,7 +1527,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 2719     set_free_obj(page, page->active, objnr);
 2720 }
 ```
-`slab_destroy()`的工作是释放页面和slab管理结构（如果在外部）
+slab_destroy() 的工作是释放页面和 slab 管理结构（如果在外部）
 ```
 /// @file mm/slab.c
 2034 static void slab_destroy(struct kmem_cache *cachep, struct page *page)
@@ -1526,9 +1550,9 @@ struct kmem_cache *cachep = kmem_cache_create(
 2062 }
 ```
 
-## SLAB分配器释放
-###`kmem_cache_destroy()`
-`kmem_cache_destroy()`的工作是释放一个`cache`
+## SLAB 分配器释放
+### kmem_cache_destroy()
+kmem_cache_destroy() 的工作是释放一个 cache
 ```
 /// @file mm/slab_common.c
 335 void kmem_cache_destroy(struct kmem_cache *s)
@@ -1573,7 +1597,7 @@ struct kmem_cache *cachep = kmem_cache_create(
 374     put_online_cpus();
 375 }
 ```
-`slab_kmem_cache_release()`进行释放操作
+slab_kmem_cache_release() 进行释放操作
 ```
 /// @file mm/slab_common.c
 329 void slab_kmem_cache_release(struct kmem_cache *s)
@@ -1582,4 +1606,4 @@ struct kmem_cache *cachep = kmem_cache_create(
 332     kmem_cache_free(kmem_cache, s); // 释放
 333 }
 ```
-需要注意的是，`kmem_cache`是一个全局变量，指向一个`cache`，这个`cache`管理分配`struct kmem_cache`对象。`struct kmem_cache`对象的释放和普通对象的释放一样，`kmem_cache_free()`的处理也一样。
+需要注意的是， kmem_cache 是一个全局变量，指向一个 cache，这个 cache 管理分配 kmem_cache 对象。kmem_cache 对象的释放和普通对象的释放一样，kmem_cache_free() 的处理也一样。
