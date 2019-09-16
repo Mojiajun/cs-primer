@@ -635,7 +635,7 @@ where T.salary > S.salary and S.dept_name='Biology'; // 处理同一个关系中
 ### B+树  
 <img src="imgs/b+tree.png">
 
-- 一棵n阶的B树，或为空树，或为满足下列特性的n叉数  
+- 一棵n阶的B+树，或为空树，或为满足下列特性的n叉数  
   - 从根到叶结点的每条路径的长度相同
   - 树中每个非叶结点有$\lceil n/2 \rceil - n$个子树（指针）
   - 叶结点可以包含$\lceil (n-1)/2 \rceil - (n-1)$值
