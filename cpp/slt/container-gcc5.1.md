@@ -1640,7 +1640,7 @@ std::size_t  _M_hash_code; //        _M_hash_code if cache_hash_code is true
 1593       std::pair<bool, std::size_t> __do_rehash
 1594         = _M_rehash_policy._M_need_rehash(_M_bucket_count, _M_element_count, 1);
 ```
-`_M_need_rehash`参数含义：`__n_bkt`表示桶（bucekt）的总数量，`__n_elt`表示当前桶（将元素插入进去）的元素个数，`__n_ins`表示插入的元素的个数。`_Prime_rehash_policy::_M_next_resize`是一个阈值，表示单个桶能够储存元素的上界，由`_M_max_load_factor`控制。如果某个桶的元素个数达到这个阈值，就可能需要扩容。`_M_max_load_factor`表示一个负载系数上限，表示单个桶的元素个数与桶的个数的最大比例（默认是1）。因此，默认情况下，某个桶的元素个数大于等于桶的个数，需要扩容。
+`_M_need_rehash`参数含义：`__n_bkt`表示桶（bucket）的总数量，`__n_elt`表示当前桶（将元素插入进去）的元素个数，`__n_ins`表示插入的元素的个数。`_Prime_rehash_policy::_M_next_resize`是一个阈值，表示单个桶能够储存元素的上界，由`_M_max_load_factor`控制。如果某个桶的元素个数达到这个阈值，就可能需要扩容。`_M_max_load_factor`表示一个负载系数上限，表示单个桶的元素个数与桶的个数的最大比例（默认是1）。因此，默认情况下，某个桶的元素个数大于等于桶的个数，需要扩容。
 
 由于`_M_max_load_factor`是可以改变的（例如`std::unordered_set::max_load_factor(float ml)`就可以改变该值），所以即使超过`__M_next_resize`，也不一定扩容。只有`__min_bkts >= __n_bkt`才真正需要扩容，调用`_M_next_bkt`返回一个桶的数量。`_S_growth_factor`是一个常量，大小为2，所有扩容大致上是二倍增长。
 ```

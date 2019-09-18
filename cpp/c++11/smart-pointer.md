@@ -50,7 +50,7 @@
 ```
 
 #### 构造函数
-只介绍形参是 weak_ptr 的构造函数，该函数用于实现 weak_ptr::lock()。当 \_M_refcount.\_M_get_use_count() 返回 0（没有 shared_ptr 指针指向，被管理的对象已经释放）时，_M_ptr 被设置为 nullptr，表示不能提升。
+只介绍形参是 weak_ptr 的构造函数，该函数用于实现 weak_ptr::lock()。当 \_M_refcount.\_M_get_use_count() 返回 0（没有 shared_ptr 指针指向，被管理的对象已经释放）时，\_M_ptr 被设置为 nullptr，表示不能提升。
 ```
 1144       // This constructor is used by __weak_ptr::lock() and
 1145       // shared_ptr::shared_ptr(const weak_ptr&, std::nothrow_t).
@@ -62,7 +62,7 @@
 ```
 
 #### 析构函数
-使用默认析构函数，对象的管理在 __shared_count<_Lp>::_M_refcount 实现
+使用默认析构函数，对象的管理在 __shared_count<_Lp>::\_M_refcount 实现
 ```
 /// @file bits/shared_ptr_base.h
 925       ~__shared_ptr() = default;
@@ -741,7 +741,7 @@ __shared_count 最终会执行如下构造函数，构造函数完成后 \_M_pi 
 129     class unique_ptr
 130     {
 146       typedef std::tuple<typename _Pointer::type, _Dp>  __tuple_type;
-147       __tuple_type                                      _M_t;
+147       __tuple_type                                      _M_t; // 指针和Deletor
 149     public:
 148 
 150       typedef typename _Pointer::type   pointer;
