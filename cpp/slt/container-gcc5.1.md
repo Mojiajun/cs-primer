@@ -28,7 +28,7 @@ Iterator Tags标志类迭代器能够进行的操作，比如只能前向移动�
 
 ### 通用Iterator
 每个迭代器都必须提供5类信息：iterator_category、value_type、difference_type、pointer、reference。
-第一个数迭代器本身的信息，表示iterator_tag，标识迭代器本身的操作类型，后四种标志迭代器所指数据的相关信息。
+第一个属于迭代器本身的信息，表示iterator_tag，标识迭代器本身的操作类型，后四种标志迭代器所指数据的相关信息。
 ```
 116   template<typename _Category, typename _Tp, typename _Distance = ptrdiff_t,
 117            typename _Pointer = _Tp*, typename _Reference = _Tp&>
